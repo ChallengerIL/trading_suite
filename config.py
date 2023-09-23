@@ -18,7 +18,7 @@ TIMEZONE = pytz.timezone('Europe/London')
 # If TSV is UP and HMA 12 crosses HMA 80 to the top - Buy, sell if it's mirrored
 
 STRATEGIES = {
-    "hunter": {
+    "example_strategy": {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
         "pairs": ['GBPUSD'],
         "indicators": {
@@ -168,34 +168,6 @@ STRATEGIES = {
         "update_period": 25,
         "plotting_rows": 2,
         "training_period": 500,
-    },
-    "ema_crossing": {
-        "tfs": ["M1", "H1"],
-        "pairs": ["GBPUSD", "EURUSD", "EURJPY", "USDJPY", "USDCAD", "AUDUSD", "USDCHF"],
-        "indicators": ["ema", "tema"],
-        "bounds_low": [7, 21, 4],
-        "bounds_high": [17, 31, 14],
-        "tp": 1000,
-        "sl": -20,
-        "total_trades": 1,
-        "update_weekday": 5,
-        "update_time": time(0, 0, 0, tzinfo=TIMEZONE),
-        "update_period": 25,
-        "training_period": 1000,
-    },
-    "ema_tema_crossing": {
-        "tfs": ["H4"],
-        "pairs": ["GBPUSD", "EURUSD", "EURJPY", "USDJPY", "USDCAD", "AUDUSD", "USDCHF"],
-        "indicators": ["ema", "tema"],
-        "bounds_low": [5, 5, 5, 5, -150],
-        "bounds_high": [200, 200, 200, 200, -5],
-        "tp": 1000,
-        "sl": -20,
-        "total_trades": 10,
-        "update_weekday": 5,
-        "update_time": time(0, 0, 0, tzinfo=TIMEZONE),
-        "update_period": 25,
-        "training_period": 1000,
     },
 }
 

@@ -148,20 +148,11 @@ class Currency:
         self.check_exit(account, index, trailing_stop=False, fixed_tp_sl=True, martin=True, fast_growth=False)
 
         if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
-            if self.direction_lost == -1:
+            direction = random.randint(-1, 1)
+            if direction == 1:
                 self.open_long(index, account.lot_size)
-            elif self.direction_lost == 1:
-                self.open_short(index, account.lot_size)
-            elif self.direction_won == 1:
-                self.open_long(index, account.lot_size)
-            elif self.direction_won == -1:
-                self.open_short(index, account.lot_size)
             else:
-                direction = random.randint(-1, 1)
-                if direction == 1:
-                    self.open_long(index, account.lot_size)
-                else:
-                    self.open_short(index, account.lot_size)
+                self.open_short(index, account.lot_size)
 
     def open_long(self, index, lot_size, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
                   previous_tp=False, previous_sl=False):
