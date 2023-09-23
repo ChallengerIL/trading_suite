@@ -1,0 +1,28 @@
+,Account
+AUDUSD,96.63
+EURJPY,95.85
+GBPUSD,64.56
+USDCAD,0.21
+USDJPY,86.4
+account profit,13.77
+active positions,15
+balance,489.18
+balance_max,542.79
+balance_min,0.0
+bars_passed,12440
+drawdown,100.0
+equity,502.95
+free margin,472.57
+last_data_update,2022-05-30 15:45:00
+last_params_update,2022-05-29
+loss_longs,0
+loss_shorts,0
+loss_trades,0
+losses,[]
+lot_size,0.01
+pips,0
+profit_longs,0
+profit_shorts,0
+profit_trades,0
+profits,[]
+total_trades,0
