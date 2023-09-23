@@ -57,7 +57,7 @@ params = [
 #
 # connect()
 
-pairs = STRATEGIES["hunter"]['pairs']
+pairs = STRATEGIES["example_strategy"]['pairs']
 
 # Uncomment to update the source data (MT5 is required)
 # for pair in pairs:
@@ -65,7 +65,7 @@ pairs = STRATEGIES["hunter"]['pairs']
 
 # shutdown()
 # start = t.time()
-backtester(pairs=pairs, strategy=STRATEGIES["hunter"], params=params, plotting=True, verbose=True, cushion=0)
+backtester(pairs=pairs, strategy=STRATEGIES["example_strategy"], params=params, plotting=True, verbose=True, cushion=0)
 # end = t.time()
 # print("Elapsed (with compilation) = %s" % (end - start))
 

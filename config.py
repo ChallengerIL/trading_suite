@@ -189,7 +189,7 @@ END = datetime.now().replace(tzinfo=TIMEZONE)
 # START = datetime(2022, 1, 1, tzinfo=TIMEZONE)
 
 # END = datetime(2022, 1, 1, tzinfo=TIMEZONE)
-START = END - timedelta(days=STRATEGIES["hunter"]["training_period"])
+START = END - timedelta(days=STRATEGIES["example_strategy"]["training_period"])
 
 
 def current_time():
@@ -229,7 +229,7 @@ CUSHION = 0
 # Play with the crowding factor
 # Add drawback parameter to the fitness function
 # POPULATION_SIZE = 300
-POPULATION_SIZE = math.ceil(len(STRATEGIES["hunter"]["bounds_high"]) / 10) * 100
+POPULATION_SIZE = math.ceil(len(STRATEGIES["example_strategy"]["bounds_high"]) / 10) * 100
 P_CROSSOVER = 0.9  # probability for crossover
 P_MUTATION = 0.6
 MAX_GENERATIONS = 20
