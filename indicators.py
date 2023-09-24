@@ -24,7 +24,8 @@ class Indicator(object):
         self.indicators_dict = {
             "hma": hma, "tma": tma, "tsv": tsv, "ichimoku_cloud": ichimoku_cloud,
             "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator, "ema": ema,
-            "dema": dema, "tema": tema, "wma": wma, "rsi": rsi, "mfi": mfi,
+            "dema": dema, "tema": tema, "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic,
+
         }
 
         self.name = name
@@ -54,6 +55,7 @@ class Indicator(object):
                 "rsi": {"c": self.df[tf]["close"]},
                 "mfi": {"h": self.df[tf]["high"], "l": self.df[tf]["low"],
                         "c": self.df[tf]["close"], "v": self.df[tf]["vol"]},
+                "stochastic": {"c": self.df[tf]["close"]},
             }
 
             params = self.strategy['indicators'][self.name][tf]
@@ -132,7 +134,11 @@ class Indicator(object):
                                         colorfunc=fplt.strength_colorfilter)
                         fplt.plot(index, data[1], ax=ax, legend=f'TSV Signal {tf}')
                     else:
-                        plotted = [fplt.plot(index, d, color=params['plotting']['color'][idx], ax=ax) for d in data]
+                        plotted = [
+                            fplt.plot(
+                                index, data[n], color=params['plotting']['color'][idx][n], ax=ax
+                            ) for n in range(len(data))
+                        ]
 
                         if self.name == 'ichimoku_cloud':
                             fplt.fill_between(plotted[0], plotted[1], color=params['plotting']['color'][idx])
@@ -594,11 +600,11 @@ def wpr_trend(wpr, h, l, c, strength_period, multiplier, strength_add_number=0.5
     return trend, classic_trend, concentration, ema(strength, strength_period), up_lines, down_lines
 
 
-def stochastic(arr, p=14, sma_p=3):
-    rolling_max_arr = rolling_max(arr, p)
-    rolling_min_arr = rolling_min(arr, p)
+def stochastic(c, p=14, sma_p=3):
+    rolling_max_arr = rolling_max(c, p)
+    rolling_min_arr = rolling_min(c, p)
 
-    fast_stoch = sma(((arr - rolling_min_arr) / (rolling_max_arr - rolling_min_arr)) * 100, sma_p)
+    fast_stoch = sma(((c - rolling_min_arr) / (rolling_max_arr - rolling_min_arr)) * 100, sma_p)
     slow_stoch = sma(fast_stoch, sma_p)
 
     return fast_stoch, slow_stoch

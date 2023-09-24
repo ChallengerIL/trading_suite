@@ -22,6 +22,19 @@ STRATEGIES = {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
         "pairs": ['GBPUSD'],
         "indicators": {
+            "stochastic": {
+                "M1": {
+                    "p": [14],
+                    "sma_p": [3],
+                    "plotting": {
+                        "color": [["white", "green"]],
+                        "ax": [1],
+                        "levels": [[80, 20]],
+                        "ymin": 0,
+                        "ymax": 100,
+                    },
+                },
+            },
             # "mfi": {
             #     "M1": {
             #         "p": [14],
@@ -38,7 +51,7 @@ STRATEGIES = {
             #     "H1": {
             #         "window": [64],
             #         "plotting": {
-            #             "color": ["blue"],
+            #             "color": [["blue", "blue", "blue", "blue", "red", "blue", "blue", "blue", "blue"]],
             #         },
             #     },
             # },
@@ -47,7 +60,7 @@ STRATEGIES = {
             #         "p": [12],
             #         "multiplier": [3],
             #         "plotting": {
-            #             "color": ["blue"],
+            #             "color": [["blue", "green", "red"]],
             #         },
             #     },
             # },
@@ -80,17 +93,17 @@ STRATEGIES = {
             #         "p": [13],
             #         "ma_p": [7],
             #         "plotting": {
-            #             "ax": [2],
+            #             "ax": [1],
             #         },
             #     },
             # },
-            "ichimoku_cloud": {
-                "M1": {
-                    "plotting": {
-                        "color": ["white"],
-                    },
-                },
-            },
+            # "ichimoku_cloud": {
+            #     "H1": {
+            #         "plotting": {
+            #             "color": [["green", "yellow"]],
+            #         },
+            #     },
+            # },
             # "wma": {
             #     "H1": {
             #         "p": [12, 80],
@@ -137,7 +150,7 @@ STRATEGIES = {
             #         "atr_p": [100],
             #         "multiplier": [2],
             #         "plotting": {
-            #             "color": ["white"],
+            #             "color": [["white", "white", "white"]],
             #         },
             #     },
             #     "M15": {
@@ -145,7 +158,7 @@ STRATEGIES = {
             #         "atr_p": [100],
             #         "multiplier": [2],
             #         "plotting": {
-            #             "color": ["red"],
+            #             "color": [["red", "red", "red"]],
             #         },
             #     },
             #     "H1": {
@@ -153,7 +166,7 @@ STRATEGIES = {
             #         "atr_p": [100],
             #         "multiplier": [2],
             #         "plotting": {
-            #             "color": ["blue"],
+            #             "color": [["blue", "blue", "blue"]],
             #         },
             #     },
             # },
