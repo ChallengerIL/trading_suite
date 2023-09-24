@@ -22,16 +22,32 @@ STRATEGIES = {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
         "pairs": ['GBPUSD'],
         "indicators": {
-            "macd": {
-                "M1": {
-                    "fast_ema": [12],
-                    "slow_ema": [26],
-                    "signal_ema": [9],
+            "smma": {
+                "H1": {
+                    "p": [12, 80],
                     "plotting": {
-                        "ax": [1],
+                        "color": ["white", "blue"],
                     },
                 },
             },
+            # "sma": {
+            #     "H1": {
+            #         "p": [12, 80],
+            #         "plotting": {
+            #             "color": ["white", "blue"],
+            #         },
+            #     },
+            # },
+            # "macd": {
+            #     "M1": {
+            #         "fast_ema": [12],
+            #         "slow_ema": [26],
+            #         "signal_ema": [9],
+            #         "plotting": {
+            #             "ax": [1],
+            #         },
+            #     },
+            # },
             # "stochastic": {
             #     "M1": {
             #         "p": [14],

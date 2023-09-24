@@ -23,8 +23,9 @@ class Indicator(object):
     def __init__(self, name, df, strategy, tfs):
         self.indicators_dict = {
             "hma": hma, "tma": tma, "tsv": tsv, "ichimoku_cloud": ichimoku_cloud,
-            "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator, "ema": ema,
-            "dema": dema, "tema": tema, "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
+            "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator,
+            "sma": sma, "smma": smma, "ema": ema, "dema": dema, "tema": tema,
+            "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
 
         }
 
@@ -50,6 +51,8 @@ class Indicator(object):
                 "wr": {"h": self.df[tf]["high"], "l": self.df[tf]["low"], "c": self.df[tf]["close"]},
                 "supertrend": {"h": self.df[tf]["high"], "l": self.df[tf]["low"], "c": self.df[tf]["close"]},
                 "mml": {"h": self.df[tf]["high"], "l": self.df[tf]["low"]},
+                "sma": {"c": self.df[tf]["close"]},
+                "smma": {"c": self.df[tf]["close"]},
                 "ema": {"c": self.df[tf]["close"]},
                 "dema": {"c": self.df[tf]["close"]},
                 "tema": {"c": self.df[tf]["close"]},
@@ -148,7 +151,11 @@ class Indicator(object):
                         if self.name == 'ichimoku_cloud':
                             fplt.fill_between(plotted[0], plotted[1], color=params['plotting']['color'][idx])
                 else:
-                    fplt.plot(index, data, legend=f"{self.name.upper()} {tf} ({params['p'][idx]})", color=params['plotting']['color'][idx], ax=ax)
+                    tail = ""
+                    if "p" in params.keys():
+                        tail = f" ({params['p'][idx]})"
+
+                    fplt.plot(index, data, legend=f"{self.name.upper()} {tf}{tail}", color=params['plotting']['color'][idx], ax=ax)
 
 
 @njit
@@ -1083,31 +1090,31 @@ def rolling_min(data, n):
 
 
 @njit
-def sma(a, p):
+def sma(c, p):
     start = 0
-    if np.isnan(a).any():
-        start = np.where(np.isnan(a))[0][-1] + 1
+    if np.isnan(c).any():
+        start = np.where(np.isnan(c))[0][-1] + 1
 
-    m = np.cumsum(a[start:]) / p
+    m = np.cumsum(c[start:]) / p
     m[p:] = m[p:] - m[:-p]
     m[:p - 1] = np.nan
 
     if start > 0:
-        m = np.concatenate((a[:start], m))
+        m = np.concatenate((c[:start], m))
 
     return m
 
 
 @njit(parallel=True)
-def smma(arr, p):
+def smma(c, p):
     p = p * 2 - 1
     alpha = 2 / (p + 1)
 
-    exp_weights = np.zeros(len(arr))
-    exp_weights[p - 1] = np.mean(arr[:p])
+    exp_weights = np.zeros(len(c))
+    exp_weights[p - 1] = np.mean(c[:p])
 
     for i in range(p, len(exp_weights) + 1):
-        exp_weights[i] = exp_weights[i - 1] * (1 - alpha) + (alpha * (arr[i]))
+        exp_weights[i] = exp_weights[i - 1] * (1 - alpha) + (alpha * (c[i]))
     exp_weights[:p - 1] = np.nan
 
     return exp_weights
@@ -1145,6 +1152,7 @@ def trading_allowed(index, start, end):
 
 @njit(parallel=True)
 def vwap(h, l, c, v):
+    # Find the proper version that used Pandas
     return np.cumsum(v * (h + l + c) / 3) / np.cumsum(v)
 
 
