@@ -25,8 +25,7 @@ class Indicator(object):
             "hma": hma, "tma": tma, "tsv": tsv, "ichimoku_cloud": ichimoku_cloud,
             "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator,
             "sma": sma, "smma": smma, "ema": ema, "dema": dema, "tema": tema,
-            "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
-
+            "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd, "irb": inventory_retracement_bar,
         }
 
         self.name = name
@@ -62,6 +61,9 @@ class Indicator(object):
                         "c": self.df[tf]["close"], "v": self.df[tf]["vol"]},
                 "stochastic": {"c": self.df[tf]["close"]},
                 "macd": {"c": self.df[tf]["close"]},
+                "irb": {"o": self.df[tf]["open"], "h": self.df[tf]["high"],
+                        "l": self.df[tf]["low"], "c": self.df[tf]["close"]},
+
             }
 
             params = self.strategy['indicators'][self.name][tf]
@@ -155,12 +157,16 @@ class Indicator(object):
                     if "p" in params.keys():
                         tail = f" ({params['p'][idx]})"
 
-                    fplt.plot(index, data, legend=f"{self.name.upper()} {tf}{tail}", color=params['plotting']['color'][idx], ax=ax)
+                    fplt.plot(
+                        index, data,
+                        legend=f"{self.name.upper()} {tf}{tail}",
+                        color=params['plotting']['color'][idx], ax=ax
+                    )
 
 
 @njit
 def tsv(c, v, p=13, ma_p=7):
-    # Requires confirmation
+    # Requires validation
 
     first_run = np.zeros_like(c)
     histogram = np.zeros_like(c)
@@ -179,7 +185,7 @@ def tsv(c, v, p=13, ma_p=7):
 
 @njit
 def hma(c, p=55):
-    # Requires confirmation
+    # Requires validation
 
     return wma(2 * wma(c, p // 2) - wma(c, p), round(math.sqrt(p)))
 
@@ -209,7 +215,7 @@ def trend_lines(h, l, c, plotting=True):
     # for i in peaks_l:
     #     peaks_down[i] = l[i]
 
-    # for checking how close price is to the line use np.isclose
+    # for checking how close the price is to the line use np.isclose
 
     trend_direction = np.zeros_like(h)
 
@@ -305,7 +311,13 @@ def trend_lines(h, l, c, plotting=True):
 
 @njit
 def inventory_retracement_bar(o, h, l, c, percentage=45):
-    result = np.zeros_like(o)
+    up = np.empty(len(o))
+    down = np.empty(len(o))
+    up[:] = np.NaN
+    down[:] = np.NaN
+    # result = np.empty(len(o))
+    # result[:] = np.NaN
+    # result = np.zeros_like(o)
 
     candle_size = h - l
     high_wick = 100 / candle_size * np.where(c > o, h - c, h - o)
@@ -313,11 +325,15 @@ def inventory_retracement_bar(o, h, l, c, percentage=45):
 
     for i in range(len(o)):
         if high_wick[i] >= percentage:
-            result[i] = 1
+            up[i:i+20] = h[i]
+            # result[i:i+20] = h[i]
+            # result[i] = 1
         if low_wick[i] >= percentage:
-            result[i] = -1
+            down[i:i+20] = l[i]
+            # result[i:i+20] = l[i]
+            # result[i] = -1
 
-    return result
+    return up, down
 
 
 @njit(parallel=True)

@@ -22,6 +22,14 @@ STRATEGIES = {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
         "pairs": ['GBPUSD'],
         "indicators": {
+            # "irb": {
+            #     "D1": {
+            #         "percentage": [45],
+            #         "plotting": {
+            #             "color": [["green", "red"]],
+            #         },
+            #     },
+            # },
             "smma": {
                 "H1": {
                     "p": [12, 80],
@@ -31,10 +39,10 @@ STRATEGIES = {
                 },
             },
             # "sma": {
-            #     "H1": {
-            #         "p": [12, 80],
+            #     "D1": {
+            #         "p": [20],
             #         "plotting": {
-            #             "color": ["white", "blue"],
+            #             "color": ["white"],
             #         },
             #     },
             # },

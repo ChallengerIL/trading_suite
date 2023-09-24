@@ -554,11 +554,6 @@ class Currency:
             fplt.plot(x, self.atr_upper, legend="Upper ATR", style="...", color="blue", ax=ax)
             fplt.plot(x, self.atr_lower, legend="Lower ATR", style="...", color="blue", ax=ax)
 
-        def plot_macd(ax):
-            fplt.volume_ocv([x, self.open, self.close, self.macd_histogram], ax=ax, colorfunc=fplt.strength_colorfilter)
-            fplt.plot(x, self.macd_line, ax=ax, legend='MACD')
-            fplt.plot(x, self.macd_signal, ax=ax, legend='Signal')
-
         def plot_overlay_bars():
             overlay_plot = fplt.candlestick_ochl(
                 [x, self.overlay_open, self.overlay_close, self.overlay_high, self.overlay_low]
@@ -590,7 +585,6 @@ class Currency:
         [indicator.plot(x, ax) for indicator in self.indicators]
 
         # plot_atr(ax1)
-        # plot_macd(ax2)
         # plot_slope(ax4, self.)
         # plot_wpr_trend()
         # plot_overlay_bars()
