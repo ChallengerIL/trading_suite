@@ -30,14 +30,14 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            "smma": {
-                "H1": {
-                    "p": [12, 80],
-                    "plotting": {
-                        "color": ["white", "blue"],
-                    },
-                },
-            },
+            # "smma": {
+            #     "H1": {
+            #         "p": [12, 80],
+            #         "plotting": {
+            #             "color": ["white", "blue"],
+            #         },
+            #     },
+            # },
             # "sma": {
             #     "D1": {
             #         "p": [20],
@@ -170,14 +170,21 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            # "hma": {
-            #     "H1": {
-            #         "p": [12, 80],
-            #         "plotting": {
-            #             "color": ["green", "red"],
-            #         },
-            #     },
-            # },
+            "hma": {
+                "M1": {
+                    "p": [12, 80],
+                    "plotting": {
+                        "color": ["white", "blue"],
+                    },
+                },
+                "H1": {
+                    "p": [12, 80],
+                    "slope": [1, 1],
+                    "plotting": {
+                        "color": ["green", "red"],
+                    },
+                },
+            },
             # "tma": {
             #     "M1": {
             #         "p": [20],

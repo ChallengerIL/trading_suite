@@ -49,8 +49,8 @@ class Currency:
         else:
             self.multiplier = 0.0001
 
-        self.tp = 30
-        self.sl = 30
+        self.tp = 100
+        self.sl = 50
         self.tp_multiplier = 1.5
         self.slope_level = 0.0002
         self.break_even = 25

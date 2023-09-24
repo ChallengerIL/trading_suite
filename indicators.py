@@ -25,7 +25,8 @@ class Indicator(object):
             "hma": hma, "tma": tma, "tsv": tsv, "ichimoku_cloud": ichimoku_cloud,
             "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator,
             "sma": sma, "smma": smma, "ema": ema, "dema": dema, "tema": tema,
-            "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd, "irb": inventory_retracement_bar,
+            "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
+            "irb": inventory_retracement_bar,
         }
 
         self.name = name
@@ -77,21 +78,37 @@ class Indicator(object):
                 params_to_add_dict = dict()
 
                 for params_tuple in params.items():
-                    if params_tuple[0] != "plotting":
+                    if params_tuple[0] not in ["slope", "plotting"]:
                         params_to_add_dict[params_tuple[0]] = params_tuple[1][i]
 
                 indicators_input[self.name].update(params_to_add_dict)
 
                 data = self.indicators_dict[self.name](**indicators_input[self.name])
 
+                new_name = f"{tf.lower()}"
+                if 'p' in params.keys():
+                    new_name += f"_{params['p'][i]}"
+
                 result = list()
+                slope_data = None
+
+                if "slope" in params.keys():
+                    slope_data = slope(data, params['slope'][i])
 
                 if tf != self.all_tfs[0]:
+                    # setattr(self, new_name + "_original", data)
+
+                    if "slope" in params.keys():
+                        slope_data = match_indexes(
+                            self.df[self.all_tfs[0]]["time"], self.df[tf]["time"], slope_data
+                        )
+
                     # Check if we are dealing with a nested array/list
                     if any(isinstance(i, (np.ndarray, list)) for i in data):
                         for idx in range(len(data)):
                             result.append(match_indexes(
-                                self.df[self.all_tfs[0]]["time"], self.df[tf]["time"], data[idx]))
+                                self.df[self.all_tfs[0]]["time"], self.df[tf]["time"], data[idx]
+                            ))
                     else:
                         result = match_indexes(
                             self.df[self.all_tfs[0]]["time"], self.df[tf]["time"], data
@@ -99,10 +116,8 @@ class Indicator(object):
                 else:
                     result = data
 
-                new_name = f"{tf.lower()}"
-
-                if 'p' in params.keys():
-                    new_name += f"_{params['p'][i]}"
+                if "slope" in params.keys():
+                    setattr(self, new_name + "_slope", slope_data)
 
                 setattr(self, new_name, result)
 
@@ -138,7 +153,7 @@ class Indicator(object):
                 if any(isinstance(i, (np.ndarray, list)) for i in data):
                     if self.name == 'tsv' or self.name == 'macd':
                         fplt.volume_ocv([index, self.df[tf]["open"],
-                                        self.df[tf]["close"], data[0]], ax=ax,
+                                         self.df[tf]["close"], data[0]], ax=ax,
                                         colorfunc=fplt.strength_colorfilter)
                         fplt.plot(index, data[1], ax=ax, legend=f'{self.name.upper()} Signal {tf}')
                         if self.name == 'macd':
@@ -172,11 +187,11 @@ def tsv(c, v, p=13, ma_p=7):
     histogram = np.zeros_like(c)
 
     for i in range(1, len(c)):
-        if not c[i] == c[i-1]:
+        if not c[i] == c[i - 1]:
             first_run[i] = v[i] * (c[i] - c[i - 1])
 
     for i in range(p, len(c)):
-        histogram[i] = np.sum(first_run[i-p:i])
+        histogram[i] = np.sum(first_run[i - p:i])
 
     t_ma = sma(histogram, ma_p)
 
@@ -237,22 +252,21 @@ def trend_lines(h, l, c, plotting=True):
 
     for col in range(cols):
         for i in range(2, len(h)):
-            if np.isnan(up_angle[i-1, col]):
+            if np.isnan(up_angle[i - 1, col]):
                 if l[i] > l[i - 1]:
-                    if np.any(up_angle[i-1, :]) != l[i] - l[i-1]:
+                    if np.any(up_angle[i - 1, :]) != l[i] - l[i - 1]:
                         if plotting:
-                            up_trend[i-1, col] = l[i-1]
+                            up_trend[i - 1, col] = l[i - 1]
 
-                        up_angle[i, col] = l[i] - l[i-1]
+                        up_angle[i, col] = l[i] - l[i - 1]
                         up_trend[i, col] = l[i]
 
-            if not np.isnan(up_angle[i-1, col]):
-                up_trend[i, col] = up_trend[i-1, col] + up_angle[i-1, col]
-                if not c[i] < up_trend[i-1, col] + up_angle[i-1, col]:
-                    up_angle[i, col] = up_angle[i-1, col]
+            if not np.isnan(up_angle[i - 1, col]):
+                up_trend[i, col] = up_trend[i - 1, col] + up_angle[i - 1, col]
+                if not c[i] < up_trend[i - 1, col] + up_angle[i - 1, col]:
+                    up_angle[i, col] = up_angle[i - 1, col]
 
     print(up_trend[-10:])
-
 
     # # Iterate through matrix columns
     # for n in range(cols):
@@ -325,11 +339,11 @@ def inventory_retracement_bar(o, h, l, c, percentage=45):
 
     for i in range(len(o)):
         if high_wick[i] >= percentage:
-            up[i:i+20] = h[i]
+            up[i:i + 20] = h[i]
             # result[i:i+20] = h[i]
             # result[i] = 1
         if low_wick[i] >= percentage:
-            down[i:i+20] = l[i]
+            down[i:i + 20] = l[i]
             # result[i:i+20] = l[i]
             # result[i] = -1
 
@@ -416,7 +430,7 @@ def heikin_ashi(o, h, l, c):
     close_ha = (o + h + l + c) / 4
 
     for i in range(1, len(o)):
-        open_ha[i] = (open_ha[i-1] + close_ha[i-1]) / 2
+        open_ha[i] = (open_ha[i - 1] + close_ha[i - 1]) / 2
 
     for i in range(len(o)):
         high_ha[i] = max(o[i], h[i], l[i], c[i])
@@ -445,102 +459,102 @@ def wpr_trend(wpr, h, l, c, strength_period, multiplier, strength_add_number=0.5
 
     for i in range(2, len(c)):
         # If the current direction is up
-        if direction[i-2] == 1:
+        if direction[i - 2] == 1:
             # Check if the price has crossed -20 level from up down, which means a possible reversal
-            if wpr[i-2] >= -20 > wpr[i-1]:
-                strength_holder = (np.sum(strength[i-strength_period:i]) / strength_period) + strength_add_number
+            if wpr[i - 2] >= -20 > wpr[i - 1]:
+                strength_holder = (np.sum(strength[i - strength_period:i]) / strength_period) + strength_add_number
                 reversal = -1
-                direction[i-1] = 1
-                if h[i-1] > current_pick:
-                    strength_holder += (h[i-1] - current_pick) / multiplier
-                    current_pick = h[i-1]
-                up_lines[i-1] = current_pick
-                strength[i-1] = strength_holder
-            # If the current trend is steady in the upward direction
-            elif wpr[i-1] > -80:
-                strength_holder = (np.sum(strength[i-strength_period:i]) / strength_period) + strength_add_number
-                if wpr[i-1] >= -20:
-                    strength_holder += strength_add_number
-                if reversal == -1 and wpr[i-1] >= -20:
-                    reversal = 0
-                if h[i-1] > current_pick:
-                    strength_holder += (h[i-1] - current_pick) / multiplier
+                direction[i - 1] = 1
+                if h[i - 1] > current_pick:
+                    strength_holder += (h[i - 1] - current_pick) / multiplier
                     current_pick = h[i - 1]
-                up_lines[i-1] = current_pick
-                direction[i-1] = 1
-                strength[i-1] = strength_holder
+                up_lines[i - 1] = current_pick
+                strength[i - 1] = strength_holder
+            # If the current trend is steady in the upward direction
+            elif wpr[i - 1] > -80:
+                strength_holder = (np.sum(strength[i - strength_period:i]) / strength_period) + strength_add_number
+                if wpr[i - 1] >= -20:
+                    strength_holder += strength_add_number
+                if reversal == -1 and wpr[i - 1] >= -20:
+                    reversal = 0
+                if h[i - 1] > current_pick:
+                    strength_holder += (h[i - 1] - current_pick) / multiplier
+                    current_pick = h[i - 1]
+                up_lines[i - 1] = current_pick
+                direction[i - 1] = 1
+                strength[i - 1] = strength_holder
             # The trend has reversed
             else:
-                direction[i-1] = -1
-                strength[i-1] = (np.sum(strength[i-strength_period:i]) / strength_period) - strength_add_number
+                direction[i - 1] = -1
+                strength[i - 1] = (np.sum(strength[i - strength_period:i]) / strength_period) - strength_add_number
                 reversal = 0
                 up_picks.append(current_pick)
-                current_pick = l[i-1]
-                down_lines[i-1] = current_pick
+                current_pick = l[i - 1]
+                down_lines[i - 1] = current_pick
 
         # If the current direction is down
-        elif direction[i-2] == -1:
+        elif direction[i - 2] == -1:
             # Check if the price has crossed -80 level from down up, which means a possible reversal
-            if wpr[i-2] <= -80 < wpr[i-1]:
-                strength_holder = (np.sum(strength[i-strength_period:i]) / strength_period) - strength_add_number
+            if wpr[i - 2] <= -80 < wpr[i - 1]:
+                strength_holder = (np.sum(strength[i - strength_period:i]) / strength_period) - strength_add_number
                 reversal = 1
-                direction[i-1] = -1
-                if l[i-1] < current_pick:
-                    strength_holder -= (current_pick - l[i-1]) / multiplier
-                    current_pick = l[i-1]
-                down_lines[i-1] = current_pick
-                strength[i-1] = strength_holder
+                direction[i - 1] = -1
+                if l[i - 1] < current_pick:
+                    strength_holder -= (current_pick - l[i - 1]) / multiplier
+                    current_pick = l[i - 1]
+                down_lines[i - 1] = current_pick
+                strength[i - 1] = strength_holder
             # If the current trend is steady in the downward direction
-            elif wpr[i-1] < -20:
-                strength_holder = (np.sum(strength[i-strength_period:i]) / strength_period) - strength_add_number
-                if wpr[i-1] <= -80:
+            elif wpr[i - 1] < -20:
+                strength_holder = (np.sum(strength[i - strength_period:i]) / strength_period) - strength_add_number
+                if wpr[i - 1] <= -80:
                     strength_holder -= strength_add_number
-                if reversal == 1 and wpr[i-1] <= -80:
+                if reversal == 1 and wpr[i - 1] <= -80:
                     reversal = 0
-                if l[i-1] < current_pick:
-                    strength_holder -= (current_pick - l[i-1]) / multiplier
-                    current_pick = l[i-1]
-                down_lines[i-1] = current_pick
-                direction[i-1] = -1
-                strength[i-1] = strength_holder
+                if l[i - 1] < current_pick:
+                    strength_holder -= (current_pick - l[i - 1]) / multiplier
+                    current_pick = l[i - 1]
+                down_lines[i - 1] = current_pick
+                direction[i - 1] = -1
+                strength[i - 1] = strength_holder
             # The trend has reversed
             else:
-                direction[i-1] = 1
-                strength[i-1] = (np.sum(strength[i-strength_period:i]) / strength_period) + strength_add_number
+                direction[i - 1] = 1
+                strength[i - 1] = (np.sum(strength[i - strength_period:i]) / strength_period) + strength_add_number
                 reversal = 0
                 down_picks.append(current_pick)
-                current_pick = h[i-1]
-                up_lines[i-1] = current_pick
+                current_pick = h[i - 1]
+                up_lines[i - 1] = current_pick
 
-        elif direction[i-1] == 0:
-            if wpr[i-1] >= -20 > wpr[i-2]:
-                direction[i-1] = 1
-                strength[i-1] = strength_add_number
-                current_pick = h[i-1]
-                up_lines[i-1] = current_pick
-            elif wpr[i-1] <= -80 < wpr[i-2]:
-                direction[i-1] = -1
-                strength[i-1] = -strength_add_number
-                current_pick = l[i-1]
-                down_lines[i-1] = current_pick
+        elif direction[i - 1] == 0:
+            if wpr[i - 1] >= -20 > wpr[i - 2]:
+                direction[i - 1] = 1
+                strength[i - 1] = strength_add_number
+                current_pick = h[i - 1]
+                up_lines[i - 1] = current_pick
+            elif wpr[i - 1] <= -80 < wpr[i - 2]:
+                direction[i - 1] = -1
+                strength[i - 1] = -strength_add_number
+                current_pick = l[i - 1]
+                down_lines[i - 1] = current_pick
 
         # Trend and Flat
         if len(down_picks) > 2 and len(up_picks) > 2:
 
             # Classic Trend
             if up_picks[-1] > up_picks[-2] and down_picks[-1] > down_picks[-2]:
-                classic_trend[i-1] = 1
+                classic_trend[i - 1] = 1
                 if flat_start != 0:
                     flat_start = 0
             elif up_picks[-1] < up_picks[-2] and down_picks[-1] < down_picks[-2]:
-                classic_trend[i-1] = -1
+                classic_trend[i - 1] = -1
                 if flat_start != 0:
                     flat_start = 0
             else:
-                if classic_trend[i-2] == 1 and not c[i-1] < down_picks[-1]:
-                    classic_trend[i-1] = classic_trend[i-2]
-                elif classic_trend[i-2] == -1 and not c[i-1] > up_picks[-1]:
-                    classic_trend[i-1] = classic_trend[i-2]
+                if classic_trend[i - 2] == 1 and not c[i - 1] < down_picks[-1]:
+                    classic_trend[i - 1] = classic_trend[i - 2]
+                elif classic_trend[i - 2] == -1 and not c[i - 1] > up_picks[-1]:
+                    classic_trend[i - 1] = classic_trend[i - 2]
 
             # Regular Trend
             if flat_start == 0:
@@ -551,7 +565,7 @@ def wpr_trend(wpr, h, l, c, strength_period, multiplier, strength_add_number=0.5
                 else:
                     trend[i - 1] = trend[i - 2]
 
-                    if trend[i-2] == 0:
+                    if trend[i - 2] == 0:
                         if down_picks[-1] > down_picks[-2]:
                             if h[i - 1] > up_picks[-2]:
                                 trend[i - 1] = 1
@@ -589,11 +603,11 @@ def wpr_trend(wpr, h, l, c, strength_period, multiplier, strength_add_number=0.5
             # Concentration
             if up_picks[-1] < up_picks[-2] and down_picks[-1] > down_picks[-2]:
                 if down_picks[-2] > down_picks[-3]:
-                    if h[i-1] > up_picks[-1] > up_lines[i-2]:
-                        concentration[i-1] = 1
+                    if h[i - 1] > up_picks[-1] > up_lines[i - 2]:
+                        concentration[i - 1] = 1
                 if up_picks[-2] < up_picks[-3]:
-                    if l[i-1] < down_picks[-1] < down_lines[i-2]:
-                        concentration[i-1] = -1
+                    if l[i - 1] < down_picks[-1] < down_lines[i - 2]:
+                        concentration[i - 1] = -1
 
             # Flat
             if classic_trend[i - 1] == 0:
@@ -655,30 +669,30 @@ def supertrend(h, l, c, p=12, multiplier=3):
     superdowntrend[:] = np.nan
 
     for i in range(p, len(h)):
-        if basic_upper_band[i] < final_upper_band[i-1] or c[i-1] > final_upper_band[i-1]:
+        if basic_upper_band[i] < final_upper_band[i - 1] or c[i - 1] > final_upper_band[i - 1]:
             final_upper_band[i] = basic_upper_band[i]
         else:
-            final_upper_band[i] = final_upper_band[i-1]
+            final_upper_band[i] = final_upper_band[i - 1]
 
-        if basic_lower_band[i] > final_lower_band[i - 1] or c[i-1] < final_lower_band[i-1]:
+        if basic_lower_band[i] > final_lower_band[i - 1] or c[i - 1] < final_lower_band[i - 1]:
             final_lower_band[i] = basic_lower_band[i]
         else:
-            final_lower_band[i] = final_lower_band[i-1]
+            final_lower_band[i] = final_lower_band[i - 1]
 
     for i in range(p, len(h)):
-        if result[i-1] == final_upper_band[i-1] and c[i] <= final_upper_band[i]:
+        if result[i - 1] == final_upper_band[i - 1] and c[i] <= final_upper_band[i]:
             result[i] = final_upper_band[i]
             superdowntrend[i] = final_upper_band[i]
         else:
-            if result[i-1] == final_upper_band[i-1] and c[i] > final_upper_band[i]:
+            if result[i - 1] == final_upper_band[i - 1] and c[i] > final_upper_band[i]:
                 result[i] = final_lower_band[i]
                 superuptrend[i] = final_lower_band[i]
             else:
-                if result[i-1] == final_lower_band[i-1] and c[i] >= final_lower_band[i]:
+                if result[i - 1] == final_lower_band[i - 1] and c[i] >= final_lower_band[i]:
                     result[i] = final_lower_band[i]
                     superuptrend[i] = final_lower_band[i]
                 else:
-                    if result[i-1] == final_lower_band[i-1] and c[i] < final_lower_band[i]:
+                    if result[i - 1] == final_lower_band[i - 1] and c[i] < final_lower_band[i]:
                         result[i] = final_upper_band[i]
                         superdowntrend[i] = final_upper_band[i]
 
@@ -694,7 +708,7 @@ def macd(c, fast_ema=12, slow_ema=26, signal_ema=9):
     signal_line_holder = ema(macd_line_temp, signal_ema)
     signal_line = np.empty((len(c)))
     signal_line[:] = np.NaN
-    signal_line[len(c)-len(signal_line_holder):] = signal_line_holder
+    signal_line[len(c) - len(signal_line_holder):] = signal_line_holder
     histogram = macd_line - signal_line
 
     return histogram, signal_line, macd_line
@@ -1020,7 +1034,7 @@ def atr(h, l, c, p):
     return sma(tr, p)
 
 
-@njit(parallel=True)
+# @njit(parallel=True)
 def slope(value, p):
     return value - shift(value, p)
 
@@ -1212,27 +1226,29 @@ def candlestick_patterns(o, h, l, c):
     three_line_strike = np.zeros_like(o)
 
     for i in prange(1, len(o)):
-        if o[i-1] < c[i-1]:
-            direction[i-1] = 1
-        elif o[i-1] > c[i-1]:
-            direction[i-1] = -1
+        if o[i - 1] < c[i - 1]:
+            direction[i - 1] = 1
+        elif o[i - 1] > c[i - 1]:
+            direction[i - 1] = -1
 
     for i in prange(4, len(o)):
-        if h[i - 4] > h[i - 3] > h[i - 2] < c[i-1] and l[i - 4] < l[i - 3] < l[i - 2] < l[i-1] and direction[
+        if h[i - 4] > h[i - 3] > h[i - 2] < c[i - 1] and l[i - 4] < l[i - 3] < l[i - 2] < l[i - 1] and direction[
             i - 3] == -1 and \
                 direction[i - 2] == -1:
-            concentration_bars[i-1] = 1
-        elif h[i - 4] > h[i - 3] > h[i - 2] > h[i-1] and l[i - 4] < l[i - 3] < l[i - 2] > c[i-1] and direction[
+            concentration_bars[i - 1] = 1
+        elif h[i - 4] > h[i - 3] > h[i - 2] > h[i - 1] and l[i - 4] < l[i - 3] < l[i - 2] > c[i - 1] and direction[
             i - 3] == 1 and \
                 direction[i - 2] == 1:
-            concentration_bars[i-1] = -1
+            concentration_bars[i - 1] = -1
 
     for i in prange(4, len(o)):
-        if direction[i-4] == -1 and direction[i-3] == -1 and direction[i-2] == -1 and direction[i-1] == 1 and o[i-1] \
-                <= c[i-2] and c[i-1] > o[i-4] and c[i-4] > c[i-3] > c[i-2]:
-            three_line_strike[i-1] = 1
-        elif direction[i-4] == 1 and direction[i-3] == 1 and direction[i-2] == 1 and direction[i-1] == -1 and o[i-1] \
-                >= c[i-2] and c[i-1] < o[i-4] and c[i-4] < c[i-3] < c[i-2]:
-            three_line_strike[i-1] = -1
+        if direction[i - 4] == -1 and direction[i - 3] == -1 and direction[i - 2] == -1 and direction[i - 1] == 1 and o[
+            i - 1] \
+                <= c[i - 2] and c[i - 1] > o[i - 4] and c[i - 4] > c[i - 3] > c[i - 2]:
+            three_line_strike[i - 1] = 1
+        elif direction[i - 4] == 1 and direction[i - 3] == 1 and direction[i - 2] == 1 and direction[i - 1] == -1 and o[
+            i - 1] \
+                >= c[i - 2] and c[i - 1] < o[i - 4] and c[i - 4] < c[i - 3] < c[i - 2]:
+            three_line_strike[i - 1] = -1
 
     return concentration_bars, three_line_strike
