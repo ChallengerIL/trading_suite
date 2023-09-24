@@ -56,10 +56,10 @@ class Account:
         print("Max drawdown: " + str(round(100 - self.drawdown, 2)) + "%")
         print("Profit trades: " + str(self.profit_trades))
         print("Loss trades: " + str(self.loss_trades))
-        print("Number of longs: " + str(self.profit_longs+self.loss_longs))
+        print("Number of longs: " + str(self.profit_longs + self.loss_longs))
         print("Profit longs: " + str(self.profit_longs))
         print("Loss longs: " + str(self.loss_longs))
-        print("Number of shorts: " + str(self.profit_shorts+self.loss_shorts))
+        print("Number of shorts: " + str(self.profit_shorts + self.loss_shorts))
         print("Profit shorts: " + str(self.profit_shorts))
         print("Loss shorts: " + str(self.loss_shorts))
         if len(self.profits) > 0:
@@ -170,17 +170,22 @@ class Account:
         fplt.show()
 
 
-def backtester(pairs: list, strategy: str, params: list, plotting=False, verbose=False, cushion=2):
+def backtester(strategy: dict, params: list, plotting=False, verbose=False, cushion=2, **kw):
+    pairs = strategy['pairs']
+    if 'pairs' in kw:
+        pairs = kw['pairs']
+
     start_pos = list()
     lengths = list()
     pairs_to_test = list()
 
     for i in range(len(pairs)):
         start = t.time()
-        # pairs_to_test.append(Currency(pair=pairs[i], strategy=strategy, params=params[i], verbose=verbose,
-        #                               cushion=cushion))
-        pairs_to_test.append(Currency(pair=pairs[i], strategy=strategy, params=params, verbose=verbose,
-                                      cushion=cushion))
+        # pairs_to_test.append(Currency(pair=pairs[i], strategy=strategy,
+        # params=params[i], verbose=verbose, cushion=cushion))
+        pairs_to_test.append(
+            Currency(pair=pairs[i], strategy=strategy, params=params, verbose=verbose, cushion=cushion)
+        )
         lengths.append(len(pairs_to_test[i].open))
         start_pos.append(pairs_to_test[i].start_pos)
         end = t.time()
@@ -234,7 +239,7 @@ def backtester(pairs: list, strategy: str, params: list, plotting=False, verbose
             break
 
     if len(account.trading_period) < 2:
-        account.trading_period.append(pairs_to_test[0].index[min(lengths)-1])
+        account.trading_period.append(pairs_to_test[0].index[min(lengths) - 1])
 
     if plotting:
         if account.total_trades > 0:

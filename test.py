@@ -1,6 +1,6 @@
 from tester import backtester
-from df_parser import Parser
-from metatrader import connect, shutdown
+# from df_parser import Parser
+# from metatrader import connect, shutdown
 from config import STRATEGIES, TIMEZONE, START, END
 import time as t
 from datetime import datetime
@@ -57,7 +57,7 @@ params = [
 #
 # connect()
 
-pairs = STRATEGIES["example_strategy"]['pairs']
+# pairs = STRATEGIES["example_strategy"]['pairs']
 
 # Uncomment to update the source data (MT5 is required)
 # for pair in pairs:
@@ -65,7 +65,7 @@ pairs = STRATEGIES["example_strategy"]['pairs']
 
 # shutdown()
 # start = t.time()
-backtester(pairs=pairs, strategy=STRATEGIES["example_strategy"], params=params, plotting=True, verbose=True, cushion=0)
+backtester(strategy=STRATEGIES["example_strategy"], params=params, plotting=True, verbose=True, cushion=0)
 # end = t.time()
 # print("Elapsed (with compilation) = %s" % (end - start))
 
