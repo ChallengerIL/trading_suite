@@ -24,7 +24,7 @@ class Indicator(object):
         self.indicators_dict = {
             "hma": hma, "tma": tma, "tsv": tsv, "ichimoku_cloud": ichimoku_cloud,
             "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator, "ema": ema,
-            "dema": dema, "tema": tema, "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic,
+            "dema": dema, "tema": tema, "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
 
         }
 
@@ -33,8 +33,10 @@ class Indicator(object):
         self.strategy = strategy
         self.all_tfs = tfs
 
-        self.tfs = sorted(list(set(self.strategy['indicators'][self.name].keys())),
-                          key=self.strategy['tfs'].index, reverse=True)
+        self.tfs = sorted(list(set(
+            self.strategy['indicators'][self.name].keys())),
+            key=self.strategy['tfs'].index, reverse=True
+        )
 
         self.calculate()
 
@@ -56,6 +58,7 @@ class Indicator(object):
                 "mfi": {"h": self.df[tf]["high"], "l": self.df[tf]["low"],
                         "c": self.df[tf]["close"], "v": self.df[tf]["vol"]},
                 "stochastic": {"c": self.df[tf]["close"]},
+                "macd": {"c": self.df[tf]["close"]},
             }
 
             params = self.strategy['indicators'][self.name][tf]
@@ -128,11 +131,13 @@ class Indicator(object):
                         fplt.add_line((0, level), (len(index), level), color='#fff', style='---', ax=ax)
 
                 if any(isinstance(i, (np.ndarray, list)) for i in data):
-                    if self.name == 'tsv':
+                    if self.name == 'tsv' or self.name == 'macd':
                         fplt.volume_ocv([index, self.df[tf]["open"],
                                         self.df[tf]["close"], data[0]], ax=ax,
                                         colorfunc=fplt.strength_colorfilter)
-                        fplt.plot(index, data[1], ax=ax, legend=f'TSV Signal {tf}')
+                        fplt.plot(index, data[1], ax=ax, legend=f'{self.name.upper()} Signal {tf}')
+                        if self.name == 'macd':
+                            fplt.plot(index, data[2], ax=ax, legend=f'{self.name.upper()} Line {tf}')
                     else:
                         plotted = [
                             fplt.plot(
@@ -660,16 +665,16 @@ def supertrend(h, l, c, p=12, multiplier=3):
 
 
 @njit(parallel=True)
-def macd(close, fast_ema=12, slow_ema=26, signal_ema=9):
-    macd_line = ema(close, fast_ema) - ema(close, slow_ema)
+def macd(c, fast_ema=12, slow_ema=26, signal_ema=9):
+    macd_line = ema(c, fast_ema) - ema(c, slow_ema)
     macd_line_temp = macd_line[~np.isnan(macd_line)]
     signal_line_holder = ema(macd_line_temp, signal_ema)
-    signal_line = np.empty((len(close)))
+    signal_line = np.empty((len(c)))
     signal_line[:] = np.NaN
-    signal_line[len(close)-len(signal_line_holder):] = signal_line_holder
+    signal_line[len(c)-len(signal_line_holder):] = signal_line_holder
     histogram = macd_line - signal_line
 
-    return macd_line, signal_line, histogram
+    return histogram, signal_line, macd_line
 
 
 @jit(forceobj=True)

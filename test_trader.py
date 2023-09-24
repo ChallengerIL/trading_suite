@@ -610,12 +610,6 @@ class Currency:
         # fplt.set_y_range(0, 100, ax=ax3)
         # fplt.set_y_range(-1, 1, ax=ax2)
 
-        # fplt.plot(x, self.fast_stoch, legend="Fast Stochastic", color="purple", ax=ax3)
-        # fplt.plot(x, self.slow_stoch, legend="Slow Stochastic", color="yellow", ax=ax3)
-        # fplt.plot(x, self.fast_stoch_rsi, legend="Fast Stochastic RSI", color="blue", ax=ax3)
-        # fplt.plot(x, self.slow_stoch_rsi, legend="Slow Stochastic RSI", color="red", ax=ax3)
-
-
         # fplt.plot(x, self.trend, legend="M1 Trend", color="white", ax=ax2)
         # fplt.plot(x, self.concentration, legend="M1 Concentration", color="red", ax=ax2)
         # fplt.plot(x, self.m15_trend, legend="M15 Trend", color="red", ax=ax2)
