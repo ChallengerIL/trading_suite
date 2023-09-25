@@ -27,7 +27,8 @@ class Indicator(object):
             "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator,
             "sma": sma, "smma": smma, "ema": ema, "dema": dema, "tema": tema,
             "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
-            "irb": inventory_retracement_bar, "vwap": vwap, "rsi_vwap": rsi,
+            "irb": inventory_retracement_bar, "vwap": vwap,
+            "rsi_vwap": rsi, "adx": adx,
         }
 
         self.name = name
@@ -67,7 +68,8 @@ class Indicator(object):
                         "l": self.df[tf]["low"], "c": self.df[tf]["close"]},
                 "vwap": {"df": self.df[tf]},
                 "rsi_vwap": {"c": vwap(self.df[tf])},
-
+                "adx": {"h": self.df[tf]["high"], "l": self.df[tf]["low"],
+                        "c": self.df[tf]["close"]},
             }
 
             params = self.strategy['indicators'][self.name][tf]
@@ -1035,6 +1037,39 @@ def atr(h, l, c, p):
         tr[i] = max(max(hl, hpc), lpc)
 
     return sma(tr, p)
+
+
+@njit(parallel=True)
+def adx(h, l, c, p=14):
+    # Requires validation
+    up = h[1:] - h[:-1]
+    down = l[:-1] - l[1:]
+
+    up_idx = up > down
+    down_idx = down > up
+
+    up_dm = np.zeros(len(up))
+    up_dm[up_idx] = up[up_idx]
+    up_dm[up_dm < 0] = 0
+
+    down_dm = np.zeros(len(down))
+    down_dm[down_idx] = down[down_idx]
+    down_dm[down_dm < 0] = 0
+
+    _atr = atr(h, l, c, p)[1:]
+    up_di = 100 * ema(up_dm, p) / _atr
+    down_di = 100 * ema(down_dm, p) / _atr
+
+    zeros = (up_di + down_di == 0)
+    down_di[zeros] = .0000001
+
+    result = np.empty(len(h), dtype=h.dtype)
+    result[:] = np.nan
+
+    result[1:] = 100 * np.abs(up_di - down_di) / (up_di + down_di)
+    result = ema(result, p)
+
+    return result
 
 
 # @njit(parallel=True)

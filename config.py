@@ -22,6 +22,18 @@ STRATEGIES = {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
         "pairs": ['GBPUSD'],
         "indicators": {
+            "adx": {
+                "H1": {
+                    "p": [14],
+                    "plotting": {
+                        "color": ["white"],
+                        "ax": [1],
+                        "levels": [[25]],
+                        "ymin": 0,
+                        "ymax": 100,
+                    },
+                },
+            },
             # "rsi_vwap": {
             #     "M1": {
             #         "p": [21],
@@ -34,13 +46,13 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            "vwap": {
-                "M1": {
-                    "plotting": {
-                        "color": ["red"],
-                    },
-                },
-            },
+            # "vwap": {
+            #     "M1": {
+            #         "plotting": {
+            #             "color": ["teal"],
+            #         },
+            #     },
+            # },
             # "irb": {
             #     "D1": {
             #         "percentage": [45],
@@ -133,6 +145,26 @@ STRATEGIES = {
             #     "M1": {
             #         "p": [21],
             #         "plotting": {
+            #             "color": ["white"],
+            #             "ax": [1],
+            #             "levels": [[-20, -80]],
+            #             "ymin": -100,
+            #             "ymax": 0,
+            #         },
+            #     },
+            #     "M15": {
+            #         "p": [21],
+            #         "plotting": {
+            #             "color": ["green"],
+            #             "ax": [2],
+            #             "levels": [[-20, -80]],
+            #             "ymin": -100,
+            #             "ymax": 0,
+            #         },
+            #     },
+            #     "H1": {
+            #         "p": [21],
+            #         "plotting": {
             #             "color": ["red"],
             #             "ax": [3],
             #             "levels": [[-20, -80]],
@@ -142,7 +174,7 @@ STRATEGIES = {
             #     },
             # },
             # "tsv": {
-            #     "M1": {
+            #     "H1": {
             #         "p": [13],
             #         "ma_p": [7],
             #         "plotting": {
@@ -151,9 +183,9 @@ STRATEGIES = {
             #     },
             # },
             # "ichimoku_cloud": {
-            #     "H1": {
+            #     "M1": {
             #         "plotting": {
-            #             "color": [["green", "yellow"]],
+            #             "color": [["white", "white"]],
             #         },
             #     },
             # },
@@ -190,17 +222,25 @@ STRATEGIES = {
             #     },
             # },
             # "hma": {
-            #     "M1": {
+            #     "M15": {
             #         "p": [12, 80],
+            #         "slope": [1, 1],
             #         "plotting": {
-            #             "color": ["white", "blue"],
+            #             "color": ["green", "red"],
+            #         },
+            #     },
+            #     "H1": {
+            #         "p": [12],
+            #         "slope": [1],
+            #         "plotting": {
+            #             "color": ["yellow"],
             #         },
             #     },
             #     "H1": {
             #         "p": [12, 80],
             #         "slope": [1, 1],
             #         "plotting": {
-            #             "color": ["green", "red"],
+            #             "color": ["orange", "pink"],
             #         },
             #     },
             # },
@@ -240,7 +280,7 @@ STRATEGIES = {
         "update_time": time(0, 0, 0, tzinfo=TIMEZONE),
         "update_period": 25,
         "plotting_rows": 2,
-        "training_period": 500,
+        "training_period": 200,
     },
 }
 

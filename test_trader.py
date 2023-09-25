@@ -49,14 +49,14 @@ class Currency:
         else:
             self.multiplier = 0.0001
 
-        self.tp = 30
+        self.tp = 40
         self.sl = 30
         self.tp_multiplier = 1.5
         self.slope_level = 0.0002
         self.break_even = 25
         self.atr_multiplier = 5  # 1-30
         self.atr_period = 21  # 10-100
-        self.trailing_stop = 30
+        self.trailing_stop = 20
 
         self.indicators = list()
 
@@ -141,17 +141,17 @@ class Currency:
 
     def tester(self, account, index):
         # Add Profit Percent calculator
-        # Add ADX Indicator
         # Move config file to os.env
 
         self.check_exit(account, index, trailing_stop=False, fixed_tp_sl=True, martin=True, fast_growth=False)
 
-        if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
-            direction = random.randint(-1, 1)
-            if direction == 1:
-                self.open_long(index, account.lot_size)
-            else:
-                self.open_short(index, account.lot_size)
+        # if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
+
+            # direction = random.randint(-1, 1)
+            # if direction == 1:
+            #     self.open_long(index, account.lot_size)
+            # else:
+            #     self.open_short(index, account.lot_size)
 
     def open_long(self, index, lot_size, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
                   previous_tp=False, previous_sl=False):
