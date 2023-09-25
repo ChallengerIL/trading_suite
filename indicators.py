@@ -4,6 +4,7 @@ import math
 from scipy.signal import find_peaks
 import datetime as dt
 import finplot as fplt
+import pandas as pd
 # import functools
 
 # # Nested attributes
@@ -26,7 +27,7 @@ class Indicator(object):
             "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator,
             "sma": sma, "smma": smma, "ema": ema, "dema": dema, "tema": tema,
             "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
-            "irb": inventory_retracement_bar,
+            "irb": inventory_retracement_bar, "vwap": vwap,
         }
 
         self.name = name
@@ -64,6 +65,7 @@ class Indicator(object):
                 "macd": {"c": self.df[tf]["close"]},
                 "irb": {"o": self.df[tf]["open"], "h": self.df[tf]["high"],
                         "l": self.df[tf]["low"], "c": self.df[tf]["close"]},
+                "vwap": {"df": self.df[tf]},
 
             }
 
@@ -1180,10 +1182,26 @@ def trading_allowed(index, start, end):
     return np.array([True if end >= hour >= start else False for hour in hours], dtype=bool)
 
 
-@njit(parallel=True)
-def vwap(h, l, c, v):
-    # Find the proper version that used Pandas
-    return np.cumsum(v * (h + l + c) / 3) / np.cumsum(v)
+# For trading
+# @njit(parallel=True)
+# def vwap(h, l, c, v):
+#     return np.cumsum(v * (h + l + c) / 3) / np.cumsum(v)
+
+
+# For testing
+def vwap(df):
+    df = pd.DataFrame(df)
+    df['time'] = pd.to_datetime(df['time'], unit='s')
+
+    df = df.assign(
+        vwap_day=df.eval(
+            'wgtd = ((high + low + close) / 3 )* vol', inplace=False
+        ).groupby(pd.Grouper(key="time", freq="1D")).cumsum().eval('wgtd / vol')
+    )
+    # if "rsi_vwap_period" in kw:
+    #     df['rsi_vwap'] = get_rsi(df.vwap_day.to_numpy(), n=kw["rsi_vwap_period"])
+
+    return df.vwap_day.to_numpy()
 
 
 @njit(fastmath=True)

@@ -22,6 +22,13 @@ STRATEGIES = {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
         "pairs": ['GBPUSD'],
         "indicators": {
+            "vwap": {
+                "M1": {
+                    "plotting": {
+                        "color": ["red"],
+                    },
+                },
+            },
             # "irb": {
             #     "D1": {
             #         "percentage": [45],
@@ -122,15 +129,15 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            # "tsv": {
-            #     "M1": {
-            #         "p": [13],
-            #         "ma_p": [7],
-            #         "plotting": {
-            #             "ax": [1],
-            #         },
-            #     },
-            # },
+            "tsv": {
+                "M1": {
+                    "p": [13],
+                    "ma_p": [7],
+                    "plotting": {
+                        "ax": [1],
+                    },
+                },
+            },
             # "ichimoku_cloud": {
             #     "H1": {
             #         "plotting": {
@@ -170,21 +177,21 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            "hma": {
-                "M1": {
-                    "p": [12, 80],
-                    "plotting": {
-                        "color": ["white", "blue"],
-                    },
-                },
-                "H1": {
-                    "p": [12, 80],
-                    "slope": [1, 1],
-                    "plotting": {
-                        "color": ["green", "red"],
-                    },
-                },
-            },
+            # "hma": {
+            #     "M1": {
+            #         "p": [12, 80],
+            #         "plotting": {
+            #             "color": ["white", "blue"],
+            #         },
+            #     },
+            #     "H1": {
+            #         "p": [12, 80],
+            #         "slope": [1, 1],
+            #         "plotting": {
+            #             "color": ["green", "red"],
+            #         },
+            #     },
+            # },
             # "tma": {
             #     "M1": {
             #         "p": [20],

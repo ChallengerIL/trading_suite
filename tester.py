@@ -18,6 +18,7 @@ class Account:
         self.balance_min = self.balance
         self.equity = self.balance
         self.drawdown = 100
+        # Include the leverage into the calculation
         self.leverage = 500
         self.lot_size_start = 0.01
         self.lot_size = self.lot_size_start

@@ -1,6 +1,6 @@
 from tester import backtester
-# from df_parser import Parser
-# from metatrader import connect, shutdown
+from df_parser import Parser
+from metatrader import connect, shutdown
 from config import STRATEGIES, TIMEZONE, START, END
 import time as t
 from datetime import datetime
@@ -9,7 +9,7 @@ import numpy as np
 import os
 import math
 
-# os.system(f"python trainer.py GBPUSD hunter")
+# os.system(f"python trainer.py GBPUSD example_strategy")
 # quit()
 
 # exec(open('ga.py').read())
@@ -57,11 +57,11 @@ params = [
 #
 # connect()
 
-# pairs = STRATEGIES["example_strategy"]['pairs']
+pairs = STRATEGIES["example_strategy"]['pairs']
 
 # Uncomment to update the source data (MT5 is required)
-# for pair in pairs:
-#     Parser(pair=pair, strategy=STRATEGIES["hunter"], save=True, start=START, end=END)
+for pair in pairs:
+    Parser(pair=pair, strategy=STRATEGIES["example_strategy"], save=True, start=START, end=END)
 
 # shutdown()
 # start = t.time()

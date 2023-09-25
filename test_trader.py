@@ -49,8 +49,8 @@ class Currency:
         else:
             self.multiplier = 0.0001
 
-        self.tp = 100
-        self.sl = 50
+        self.tp = 30
+        self.sl = 30
         self.tp_multiplier = 1.5
         self.slope_level = 0.0002
         self.break_even = 25
@@ -61,10 +61,9 @@ class Currency:
         self.indicators = list()
 
         for indicator in self.strategy['indicators']:
-            setattr(
-                self, indicator,
-                Indicator(name=indicator, df=self.df,
-                          strategy=self.strategy, tfs=self.tfs))
+            setattr(self, indicator, Indicator(
+                name=indicator, df=self.df, strategy=self.strategy, tfs=self.tfs
+            ))
 
             indi = getattr(self, indicator)
 
@@ -159,7 +158,7 @@ class Currency:
         if not open_price:
             open_price = self.open[index]
 
-        price = open_price + self.multiplier * (self.spread[index-1] + self.cushion)
+        price = open_price + self.multiplier * (self.spread[index - 1] + self.cushion)
 
         tp = price + self.tp * self.multiplier
         sl = price - self.sl * self.multiplier
@@ -258,10 +257,10 @@ class Currency:
                         self.long_sls[i] = current_price - self.trailing_stop * self.multiplier
 
                 if fixed_tp_sl:
-                    if self.high[index-1] >= self.long_tps[i] or current_price >= self.long_tps[i]:
+                    if self.high[index - 1] >= self.long_tps[i] or current_price >= self.long_tps[i]:
                         pips = round(pip_calc(value, self.long_tps[i], self.multiplier), 2)
 
-                    elif self.low[index-1] <= self.long_sls[i] or current_price <= self.long_sls[i]:
+                    elif self.low[index - 1] <= self.long_sls[i] or current_price <= self.long_sls[i]:
                         pips = round(pip_calc(value, self.long_sls[i], self.multiplier), 2)
 
                 if current_price >= self.long_tps[i] or current_price <= self.long_sls[i] or close_long or pips != 0:
@@ -340,7 +339,7 @@ class Currency:
         if len(self.active_shorts) > 0:
             for i, value in enumerate(self.active_shorts):
 
-                current_price = self.open[index] + (self.spread[index-1] + self.cushion) * self.multiplier
+                current_price = self.open[index] + (self.spread[index - 1] + self.cushion) * self.multiplier
                 pips = 0
 
                 if atr_trailing:
@@ -352,10 +351,11 @@ class Currency:
                         self.short_sls[i] = current_price + self.trailing_stop * self.multiplier
 
                 if fixed_tp_sl:
-                    if self.low[index-1] + (self.spread[index-1] + self.cushion) * self.multiplier <= self.short_tps[i]\
+                    if self.low[index - 1] + (self.spread[index - 1] + self.cushion) * self.multiplier <= \
+                            self.short_tps[i] \
                             or current_price <= self.short_tps[i]:
                         pips = round((value - self.short_tps[i]) / self.multiplier, 2)
-                    elif self.high[index-1] + (self.spread[index-1] + self.cushion) * self.multiplier >= \
+                    elif self.high[index - 1] + (self.spread[index - 1] + self.cushion) * self.multiplier >= \
                             self.short_sls[i] or current_price >= self.short_sls[i]:
                         pips = round((value - self.short_sls[i]) / self.multiplier, 2)
 
@@ -548,7 +548,6 @@ class Currency:
         x = self.index
         marker_size = 3
         ax = fplt.create_plot(self.name, rows=self.strategy["plotting_rows"], init_zoom_periods=200)
-
 
         def plot_atr(ax):
             fplt.plot(x, self.atr_upper, legend="Upper ATR", style="...", color="blue", ax=ax)
