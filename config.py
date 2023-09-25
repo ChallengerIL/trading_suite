@@ -235,7 +235,7 @@ STRATEGIES = {
         "bounds_high": [300, 100, -1, 20, 100, 30, 15, 30],
         "tp": 1000,
         "sl": -20,
-        "total_trades": 1000,
+        "total_trades": 100,
         "update_weekday": 5,
         "update_time": time(0, 0, 0, tzinfo=TIMEZONE),
         "update_period": 25,

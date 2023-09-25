@@ -64,7 +64,7 @@ def classificationAccuracy(individual):
     # if pair.profit_shorts < pair.strategy_dict["total_trades"] / 5:
     #     result -= 5000
 
-    if pair.total_trades < pair.strategy_dict["total_trades"]:
+    if pair.total_trades < pair.strategy["total_trades"]:
         result -= 10000
 
     return result,
