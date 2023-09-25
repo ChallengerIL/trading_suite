@@ -22,6 +22,18 @@ STRATEGIES = {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
         "pairs": ['GBPUSD'],
         "indicators": {
+            # "rsi_vwap": {
+            #     "M1": {
+            #         "p": [21],
+            #         "plotting": {
+            #             "color": ["white", "red"],
+            #             "ax": [1],
+            #             "levels": [[80, 20]],
+            #             "ymin": 0,
+            #             "ymax": 100,
+            #         },
+            #     },
+            # },
             "vwap": {
                 "M1": {
                     "plotting": {
@@ -129,15 +141,15 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            "tsv": {
-                "M1": {
-                    "p": [13],
-                    "ma_p": [7],
-                    "plotting": {
-                        "ax": [1],
-                    },
-                },
-            },
+            # "tsv": {
+            #     "M1": {
+            #         "p": [13],
+            #         "ma_p": [7],
+            #         "plotting": {
+            #             "ax": [1],
+            #         },
+            #     },
+            # },
             # "ichimoku_cloud": {
             #     "H1": {
             #         "plotting": {

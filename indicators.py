@@ -27,7 +27,7 @@ class Indicator(object):
             "wr": get_wr, "supertrend": supertrend, "mml": mml_calculator,
             "sma": sma, "smma": smma, "ema": ema, "dema": dema, "tema": tema,
             "wma": wma, "rsi": rsi, "mfi": mfi, "stochastic": stochastic, "macd": macd,
-            "irb": inventory_retracement_bar, "vwap": vwap,
+            "irb": inventory_retracement_bar, "vwap": vwap, "rsi_vwap": rsi,
         }
 
         self.name = name
@@ -66,6 +66,7 @@ class Indicator(object):
                 "irb": {"o": self.df[tf]["open"], "h": self.df[tf]["high"],
                         "l": self.df[tf]["low"], "c": self.df[tf]["close"]},
                 "vwap": {"df": self.df[tf]},
+                "rsi_vwap": {"c": vwap(self.df[tf])},
 
             }
 
