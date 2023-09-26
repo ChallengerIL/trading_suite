@@ -20,10 +20,10 @@ TIMEZONE = pytz.timezone('Europe/London')
 STRATEGIES = {
     "example_strategy": {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
-        "pairs": ['GBPUSD'],
+        "pairs": ['GBPUSD', 'EURUSD', 'AUDUSD', 'USDJPY', 'USDCAD', 'USDCHF'],
         "indicators": {
             "adx": {
-                "H1": {
+                "M15": {
                     "p": [14],
                     "plotting": {
                         "color": ["white"],
@@ -221,29 +221,28 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            # "hma": {
-            #     "M15": {
-            #         "p": [12, 80],
-            #         "slope": [1, 1],
-            #         "plotting": {
-            #             "color": ["green", "red"],
-            #         },
-            #     },
-            #     "H1": {
-            #         "p": [12],
-            #         "slope": [1],
-            #         "plotting": {
-            #             "color": ["yellow"],
-            #         },
-            #     },
-            #     "H1": {
-            #         "p": [12, 80],
-            #         "slope": [1, 1],
-            #         "plotting": {
-            #             "color": ["orange", "pink"],
-            #         },
-            #     },
-            # },
+            "hma": {
+                "M15": {
+                    "p": [80],
+                    "slope": [1],
+                    "plotting": {
+                        "color": ["green", "red"],
+                    },
+                },
+                "M1": {
+                    "p": [12],
+                    "plotting": {
+                        "color": ["yellow"],
+                    },
+                },
+                # "H1": {
+                #     "p": [12, 80],
+                #     "slope": [1, 1],
+                #     "plotting": {
+                #         "color": ["orange", "pink"],
+                #     },
+                # },
+            },
             # "tma": {
             #     "M1": {
             #         "p": [20],
@@ -280,7 +279,7 @@ STRATEGIES = {
         "update_time": time(0, 0, 0, tzinfo=TIMEZONE),
         "update_period": 25,
         "plotting_rows": 2,
-        "training_period": 200,
+        "training_period": 1000,
     },
 }
 

@@ -99,4 +99,4 @@ class Parser:
                 with h5py.File(f"{FILES_DIR}pairs_data.h5", 'a') as file:
                     [file.create_dataset(f"{tf}_{pair}", data=self.df[tf], dtype=self.df[tf].dtype) for tf in self.df]
 
-            # shutdown()
+            shutdown()

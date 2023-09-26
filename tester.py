@@ -24,9 +24,6 @@ class Account:
         self.lot_size = self.lot_size_start
         self.max_lot_size = 50
         self.currency_converter = 10
-        self.win_series = 0
-        self.fast_growth = [3, 4, 5, 7, 9, 11, 14, 19, 24, 32, 41, 54, 70, 91, 118, 154, 200, 260, 337, 439, 570,
-                            741, 964, 1253, 1628, 2117, 2752, 3578, 4651, 6046]
         self.profits = []
         self.losses = []
         self.profit_pips = []

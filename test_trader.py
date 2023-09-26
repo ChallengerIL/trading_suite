@@ -49,7 +49,7 @@ class Currency:
         else:
             self.multiplier = 0.0001
 
-        self.tp = 40
+        self.tp = 30
         self.sl = 30
         self.tp_multiplier = 1.5
         self.slope_level = 0.0002
@@ -69,6 +69,7 @@ class Currency:
 
             self.indicators.append(indi)
 
+        self.lot_size = 0.01
         self.take_profit = 1
         self.active_longs = []
         self.active_shorts = []
@@ -96,6 +97,9 @@ class Currency:
         self.closed_short_loss[:] = np.nan
         self.closed_long_idx = []
         self.closed_short_idx = []
+        self.win_series = 0
+        self.fast_growth = [3, 4, 5, 7, 9, 11, 14, 19, 24, 32, 41, 54, 70, 91, 118, 154, 200, 260, 337, 439, 570,
+                            741, 964, 1253, 1628, 2117, 2752, 3578, 4651, 6046]
         self.pips = 0
         self.profit_trades = 0
         self.loss_trades = 0
@@ -149,11 +153,11 @@ class Currency:
 
             # direction = random.randint(-1, 1)
             # if direction == 1:
-            #     self.open_long(index, account.lot_size)
+            #     self.open_long(index)
             # else:
-            #     self.open_short(index, account.lot_size)
+            #     self.open_short(index)
 
-    def open_long(self, index, lot_size, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
+    def open_long(self, index, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
                   previous_tp=False, previous_sl=False):
         if not open_price:
             open_price = self.open[index]
@@ -183,18 +187,18 @@ class Currency:
         self.long_tps.append(tp)
         self.long_sls.append(sl)
         self.active_longs.append(price)
-        self.long_lot_sizes.append(lot_size)
+        self.long_lot_sizes.append(self.lot_size)
         self.went_long_price[index] = price
 
         if self.verbose:
-            print(f"Going Long on {self.name}, {lot_size}")
+            print(f"Going Long on {self.name}, {self.lot_size}")
             print(self.index[index])
             print(f"Take Profit: {tp}")
             print(f"Stop Loss: {sl}")
             print("Active Longs: " + str(self.active_longs))
             print("\n")
 
-    def open_short(self, index, lot_size, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
+    def open_short(self, index, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
                    previous_tp=False, previous_sl=False):
         if not open_price:
             open_price = self.open[index]
@@ -222,11 +226,11 @@ class Currency:
         self.active_shorts.append(open_price)
         self.short_tps.append(tp)
         self.short_sls.append(sl)
-        self.short_lot_sizes.append(lot_size)
+        self.short_lot_sizes.append(self.lot_size)
         self.went_short_price[index] = open_price
 
         if self.verbose:
-            print(f"Going Short on {self.name}, {lot_size}")
+            print(f"Going Short on {self.name}, {self.lot_size}")
             print(self.index[index])
             print(f"Take Profit: {tp}")
             print(f"Stop Loss: {sl}")
@@ -238,9 +242,13 @@ class Currency:
 
         # Add Break Even mode with a fixed tp of ~ 1 pip after price moved away 20+ pips
 
+        if not martin or not fast_growth:
+            if self.lot_size < account.lot_size:
+                self.lot_size = account.lot_size
+
         if fast_growth:
             self.adjust_lot_size = False
-            account.lot_size = account.fast_growth[account.win_series] / 100
+            self.lot_size = self.fast_growth[self.win_series] / 100
 
         if len(self.active_longs) > 0:
             for i, value in enumerate(self.active_longs):
@@ -284,12 +292,12 @@ class Currency:
                         account.profit_trades += 1
                         self.closed_long_profit[index] = current_price
                         if martin:
-                            account.lot_size = account.lot_size_start
+                            self.lot_size = account.lot_size
                         self.direction_lost = 0
                         self.direction_won = 1
                         if fast_growth:
-                            if account.win_series < len(account.fast_growth) - 1:
-                                account.win_series += 1
+                            if self.win_series < len(self.fast_growth) - 1:
+                                self.win_series += 1
                     else:
                         if self.verbose:
                             print(f"Closing {self.long_lot_sizes[i]} {self.name} Long in loss")
@@ -305,12 +313,12 @@ class Currency:
                         account.loss_trades += 1
                         self.closed_long_loss[index] = current_price
                         if martin:
-                            account.lot_size *= 2
+                            self.lot_size *= 2
                         self.direction_lost = 1
                         self.direction_won = 0
                         if fast_growth:
-                            if account.win_series > 0:
-                                account.win_series -= 1
+                            if self.win_series > 0:
+                                self.win_series -= 1
 
                     account.balance += result
                     self.pips += pips
@@ -380,12 +388,12 @@ class Currency:
                         account.profit_trades += 1
                         self.closed_short_profit[index] = current_price
                         if martin:
-                            account.lot_size = account.lot_size_start
+                            self.lot_size = account.lot_size
                         self.direction_lost = 0
                         self.direction_won = -1
                         if fast_growth:
-                            if account.win_series < len(account.fast_growth) - 1:
-                                account.win_series += 1
+                            if self.win_series < len(self.fast_growth) - 1:
+                                self.win_series += 1
                     else:
                         if self.verbose:
                             print(f"Closing {self.short_lot_sizes[i]} {self.name} Short in loss")
@@ -401,12 +409,12 @@ class Currency:
                         account.loss_trades += 1
                         self.closed_short_loss[index] = current_price
                         if martin:
-                            account.lot_size *= 2
+                            self.lot_size *= 2
                         self.direction_lost = -1
                         self.direction_won = 0
                         if fast_growth:
-                            if account.win_series > 0:
-                                account.win_series -= 1
+                            if self.win_series > 0:
+                                self.win_series -= 1
 
                     account.balance += result
                     self.pips += pips

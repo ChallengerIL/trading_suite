@@ -749,6 +749,7 @@ def match_indexes(goal_index, source_index, arr, shift_to_match=True, arr_type=n
 
     result = numpy_fill(idx_arr)
     result = result.astype(arr_type)
+
     if shift_to_match:
         result = shift(result, step)
 
