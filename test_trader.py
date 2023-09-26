@@ -149,6 +149,16 @@ class Currency:
 
         self.check_exit(account, index, trailing_stop=False, fixed_tp_sl=True, martin=True, fast_growth=False)
 
+        # TP = 40, SL = 30, with martin
+        if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
+
+            if self.adx.m15_14[index-17] < 25:
+                if self.adx.m15_14[index-16] >= 25:
+                    if self.hma.m15_80_slope[index-16] > 0:
+                        self.open_long(index)
+                    elif self.hma.m15_80_slope[index-16] < 0:
+                        self.open_short(index)
+
         # if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
 
             # direction = random.randint(-1, 1)
