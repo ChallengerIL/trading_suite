@@ -151,7 +151,6 @@ class Currency:
 
         # TP = 40, SL = 30, with martin
         if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
-
            pass
 
         # if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
