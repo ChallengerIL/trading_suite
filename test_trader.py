@@ -153,7 +153,6 @@ class Currency:
         if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
            pass
 
-
         # if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
 
             # direction = random.randint(-1, 1)
