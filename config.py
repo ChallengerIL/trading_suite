@@ -46,13 +46,13 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            # "vwap": {
-            #     "M1": {
-            #         "plotting": {
-            #             "color": ["teal"],
-            #         },
-            #     },
-            # },
+            "vwap": {
+                "M1": {
+                    "plotting": {
+                        "color": ["teal"],
+                    },
+                },
+            },
             # "irb": {
             #     "D1": {
             #         "percentage": [45],
