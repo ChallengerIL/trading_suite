@@ -152,12 +152,7 @@ class Currency:
         # TP = 40, SL = 30, with martin
         if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
 
-            if self.adx.m15_14[index-17] < 25:
-                if self.adx.m15_14[index-16] >= 25:
-                    if self.hma.m15_80_slope[index-16] > 0:
-                        self.open_long(index)
-                    elif self.hma.m15_80_slope[index-16] < 0:
-                        self.open_short(index)
+           pass
 
         # if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
 
