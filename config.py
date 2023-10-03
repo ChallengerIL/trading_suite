@@ -20,20 +20,20 @@ TIMEZONE = pytz.timezone('Europe/London')
 STRATEGIES = {
     "example_strategy": {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
-        "pairs": ['GBPUSD', 'EURUSD', 'AUDUSD', 'USDJPY', 'USDCAD', 'USDCHF'],
+        "pairs": ['GBPUSD'],
         "indicators": {
-            "adx": {
-                "M15": {
-                    "p": [14],
-                    "plotting": {
-                        "color": ["white"],
-                        "ax": [1],
-                        "levels": [[25]],
-                        "ymin": 0,
-                        "ymax": 100,
-                    },
-                },
-            },
+            # "adx": {
+            #     "M15": {
+            #         "p": [14],
+            #         "plotting": {
+            #             "color": ["white"],
+            #             "ax": [1],
+            #             "levels": [[25]],
+            #             "ymin": 0,
+            #             "ymax": 100,
+            #         },
+            #     },
+            # },
             # "rsi_vwap": {
             #     "M1": {
             #         "p": [21],
@@ -222,17 +222,18 @@ STRATEGIES = {
             #     },
             # },
             "hma": {
-                "M15": {
-                    "p": [80],
-                    "slope": [1],
+                "H1": {
+                    "p": [12, 80],
+                    "slope": [1, 1],
                     "plotting": {
                         "color": ["green", "red"],
                     },
                 },
                 "M1": {
-                    "p": [12],
+                    "p": [12, 80],
+                    "slope": [1, 1],
                     "plotting": {
-                        "color": ["yellow"],
+                        "color": ["white", "yellow"],
                     },
                 },
                 # "H1": {
@@ -279,7 +280,7 @@ STRATEGIES = {
         "update_time": time(0, 0, 0, tzinfo=TIMEZONE),
         "update_period": 25,
         "plotting_rows": 2,
-        "training_period": 1000,
+        "training_period": 500,
     },
 }
 

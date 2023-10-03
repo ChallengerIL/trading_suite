@@ -49,14 +49,14 @@ class Currency:
         else:
             self.multiplier = 0.0001
 
-        self.tp = 30
-        self.sl = 30
+        self.tp = 500
+        self.sl = 20
         self.tp_multiplier = 1.5
         self.slope_level = 0.0002
         self.break_even = 25
         self.atr_multiplier = 5  # 1-30
         self.atr_period = 21  # 10-100
-        self.trailing_stop = 20
+        self.trailing_stop = 300
 
         self.indicators = list()
 
@@ -162,24 +162,23 @@ class Currency:
             # else:
             #     self.open_short(index)
 
-    def open_long(self, index, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
+    def open_long(self, index, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
                   previous_tp=False, previous_sl=False):
-        if not open_price:
-            open_price = self.open[index]
+        open_price = self.open[index]
 
         price = open_price + self.multiplier * (self.spread[index - 1] + self.cushion)
 
         tp = price + self.tp * self.multiplier
         sl = price - self.sl * self.multiplier
 
-        if custom_tp:
-            tp = custom_tp
-
-        if custom_sl:
-            sl = custom_sl
-
-        if sl_multiplied_tp:
-            tp = price + (price - sl) * sl_multiplied_tp
+        # if custom_tp is not None:
+        #     tp = custom_tp
+        #
+        # if custom_sl is not None:
+        #     sl = custom_sl
+        #
+        # if sl_multiplied_tp is not None:
+        #     tp = price + (price - sl) * sl_multiplied_tp
 
         if previous_tp:
             if len(self.long_tps) > 0:
@@ -203,22 +202,21 @@ class Currency:
             print("Active Longs: " + str(self.active_longs))
             print("\n")
 
-    def open_short(self, index, open_price=None, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
+    def open_short(self, index, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
                    previous_tp=False, previous_sl=False):
-        if not open_price:
-            open_price = self.open[index]
+        open_price = self.open[index]
 
         tp = open_price - self.tp * self.multiplier
         sl = open_price + self.sl * self.multiplier
 
-        if custom_tp:
-            tp = custom_tp
-
-        if custom_sl:
-            sl = custom_sl
-
-        if sl_multiplied_tp:
-            tp = open_price - (sl - open_price) * sl_multiplied_tp
+        # if custom_tp is not None:
+        #     tp = custom_tp
+        #
+        # if custom_sl is not None:
+        #     sl = custom_sl
+        #
+        # if sl_multiplied_tp is not None:
+        #     tp = open_price - (sl - open_price) * sl_multiplied_tp
 
         if previous_tp:
             if len(self.short_tps) > 0:
@@ -601,6 +599,9 @@ class Currency:
         # plot_wpr_trend()
         # plot_overlay_bars()
         plot_markers()
+
+        # fplt.plot(x, self.hma.m1_80_slope - self.hma.m1_12_slope, color='white', ax=ax[1])
+        # fplt.set_y_range(-0.001, 0.001, ax=ax[1])
 
         # for n in range(self.high_peaks.shape[1]):
         #     fplt.plot(x, self.high_peaks[:, n], color='green', ax=ax1)

@@ -12,7 +12,7 @@ class Account:
 
     def __init__(self, pairs_num, bars_len):
         self.pairs_num = pairs_num
-        self.start_balance = 10000
+        self.start_balance = 300
         self.balance = self.start_balance * self.pairs_num
         self.balance_max = self.balance
         self.balance_min = self.balance
