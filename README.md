@@ -3,4 +3,5 @@ The project is being restructured, and some of the functionality might not be av
 
 Currently working:  
 -Parser (Requires MT5 to be installed (only Windows))  
--Tester
+-Tester  
+-Plotter
