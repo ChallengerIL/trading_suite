@@ -8,6 +8,7 @@ import finplot as fplt
 import random
 from datetime import timezone
 import pandas as pd
+from strategies import strategy_runner
 
 
 @njit
@@ -49,14 +50,14 @@ class Currency:
         else:
             self.multiplier = 0.0001
 
-        self.tp = 500
-        self.sl = 20
+        self.tp = 20
+        self.sl = 200
         self.tp_multiplier = 1.5
         self.slope_level = 0.0002
         self.break_even = 25
         self.atr_multiplier = 5  # 1-30
         self.atr_period = 21  # 10-100
-        self.trailing_stop = 300
+        self.trailing_stop = 100
 
         self.indicators = list()
 
@@ -144,23 +145,7 @@ class Currency:
         #     level = round(self.close[index - 1])
 
     def tester(self, account, index):
-        # Add Profit Percent calculator
-        # Move config file to os.env
-
-        self.check_exit(account, index, trailing_stop=False, fixed_tp_sl=True, martin=True, fast_growth=False)
-
-        # TP = 40, SL = 30, with martin
-        if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
-           pass
-
-
-        # if len(self.active_longs) == 0 and len(self.active_shorts) == 0:
-
-            # direction = random.randint(-1, 1)
-            # if direction == 1:
-            #     self.open_long(index)
-            # else:
-            #     self.open_short(index)
+        strategy_runner(self, account, index)
 
     def open_long(self, index, custom_tp=None, custom_sl=None, sl_multiplied_tp=None,
                   previous_tp=False, previous_sl=False):
@@ -256,6 +241,11 @@ class Currency:
         if len(self.active_longs) > 0:
             for i, value in enumerate(self.active_longs):
 
+                account.open_positions_state.append(
+                    round(round(pip_calc(value, self.low[index-1], self.multiplier), 2)
+                          * (self.long_lot_sizes[i] * account.currency_converter), 2)
+                )
+
                 current_price = self.open[index]
                 pips = 0
 
@@ -280,6 +270,8 @@ class Currency:
 
                     result = round(pips * (self.long_lot_sizes[i] * account.currency_converter), 2)
 
+                    account.open_positions_state.pop()
+
                     if pips >= 0:
                         if self.verbose:
                             print(f"Closing {self.long_lot_sizes[i]} {self.name} Long in profit")
@@ -293,7 +285,10 @@ class Currency:
                         account.profit_longs += 1
                         self.profit_trades += 1
                         account.profit_trades += 1
-                        self.closed_long_profit[index] = current_price
+                        if fixed_tp_sl:
+                            self.closed_long_profit[index-1] = current_price
+                        else:
+                            self.closed_long_profit[index] = current_price
                         if martin:
                             self.lot_size = account.lot_size
                         self.direction_lost = 0
@@ -314,7 +309,10 @@ class Currency:
                         account.loss_longs += 1
                         self.loss_trades += 1
                         account.loss_trades += 1
-                        self.closed_long_loss[index] = current_price
+                        if fixed_tp_sl:
+                            self.closed_long_loss[index-1] = current_price
+                        else:
+                            self.closed_long_loss[index] = current_price
                         if martin:
                             self.lot_size *= 2
                         self.direction_lost = 1
@@ -350,6 +348,12 @@ class Currency:
         if len(self.active_shorts) > 0:
             for i, value in enumerate(self.active_shorts):
 
+                account.open_positions_state.append(
+                    round(round((value - self.high[index-1] + (self.spread[index - 1] + self.cushion) *
+                                 self.multiplier) / self.multiplier, 2) *
+                          (self.short_lot_sizes[i] * account.currency_converter), 2)
+                )
+
                 current_price = self.open[index] + (self.spread[index - 1] + self.cushion) * self.multiplier
                 pips = 0
 
@@ -376,6 +380,8 @@ class Currency:
 
                     result = round(pips * (self.short_lot_sizes[i] * account.currency_converter), 2)
 
+                    account.open_positions_state.pop()
+
                     if pips >= 0:
                         if self.verbose:
                             print(f"Closing {self.short_lot_sizes[i]} {self.name} Short in profit")
@@ -389,7 +395,10 @@ class Currency:
                         account.profit_shorts += 1
                         self.profit_trades += 1
                         account.profit_trades += 1
-                        self.closed_short_profit[index] = current_price
+                        if fixed_tp_sl:
+                            self.closed_short_profit[index-1] = current_price
+                        else:
+                            self.closed_short_profit[index] = current_price
                         if martin:
                             self.lot_size = account.lot_size
                         self.direction_lost = 0
@@ -410,7 +419,10 @@ class Currency:
                         account.loss_shorts += 1
                         self.loss_trades += 1
                         account.loss_trades += 1
-                        self.closed_short_loss[index] = current_price
+                        if fixed_tp_sl:
+                            self.closed_short_loss[index-1] = current_price
+                        else:
+                            self.closed_short_loss[index] = current_price
                         if martin:
                             self.lot_size *= 2
                         self.direction_lost = -1

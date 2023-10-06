@@ -6,16 +6,19 @@ from math import floor
 import time as t
 import finplot as fplt
 from datetime import timezone
+import numpy as np
 
 
 class Account:
 
     def __init__(self, pairs_num, bars_len):
         self.pairs_num = pairs_num
-        self.start_balance = 300
+        self.start_balance = 100
         self.balance = self.start_balance * self.pairs_num
         self.balance_max = self.balance
         self.balance_min = self.balance
+        self.free_margin = self.balance
+        self.open_positions_state = []
         self.equity = self.balance
         self.drawdown = 100
         # Include the leverage into the calculation
@@ -38,66 +41,70 @@ class Account:
         self.total_trades = 0
         self.trading_period = []
         self.bars_len = bars_len
-        self.x = list()
-        self.y = list()
+        self.x = np.empty(self.bars_len)
+        self.balance_y = np.empty(self.bars_len)
+        self.balance_y[:] = np.nan
+        self.free_margin_y = np.empty(self.bars_len)
+        self.free_margin_y[:] = np.nan
 
-    def total_report(self, currency):
+    def total_report(self):
         print("Total Report")
         # print(f"Return: {}%")
         if self.profit_trades != 0:
-            print("Winning rate: " + str(round(100 / self.total_trades * self.profit_trades)) + "%")
+            print(f"Winning rate: {round(100 / self.total_trades * self.profit_trades)}%")
         else:
             print("Winning rate: 0%")
-        print("Balance : $" + str(round(self.balance, 2)))
-        print("Balance max: $" + str(round(self.balance_max, 2)))
-        print("Balance min: $" + str(round(self.balance_min, 2)))
-        print("Max drawdown: " + str(round(100 - self.drawdown, 2)) + "%")
-        print("Profit trades: " + str(self.profit_trades))
-        print("Loss trades: " + str(self.loss_trades))
-        print("Number of longs: " + str(self.profit_longs + self.loss_longs))
-        print("Profit longs: " + str(self.profit_longs))
-        print("Loss longs: " + str(self.loss_longs))
-        print("Number of shorts: " + str(self.profit_shorts + self.loss_shorts))
-        print("Profit shorts: " + str(self.profit_shorts))
-        print("Loss shorts: " + str(self.loss_shorts))
+        print(f"Balance : ${round(self.balance, 2)}")
+        print(f"Balance max: ${round(self.balance_max, 2)}")
+        print(f"Balance min: ${round(self.balance_min, 2)}")
+        # print("Max drawdown: " + str(round(100 - self.drawdown, 2)) + "%")
+        print(f"Max drawdown: {round(100 - self.drawdown, 2)}%")
+        print(f"Profit trades: {self.profit_trades}")
+        print(f"Loss trades: {self.loss_trades}")
+        print(f"Number of longs: {self.profit_longs + self.loss_longs}")
+        print(f"Profit longs: {self.profit_longs}")
+        print(f"Loss longs: {self.loss_longs}")
+        print(f"Number of shorts: {self.profit_shorts + self.loss_shorts}")
+        print(f"Profit shorts: {self.profit_shorts}")
+        print(f"Loss shorts: {self.loss_shorts}")
         if len(self.profits) > 0:
-            print("Biggest profit: +$" + str(max(self.profits)))
+            print(f"Biggest profit: +${max(self.profits)}")
         else:
             print("Biggest profit: $0")
         if len(self.losses) > 0:
-            print("Biggest loss: -$" + str(min(self.losses))[1:])
+            print(f"Biggest loss: -${str(min(self.losses))[1:]}")
         else:
             print("Biggest loss: $0")
         if len(self.profits) > 0:
-            print("Average profit: +$" + str(round(mean(self.profits), 2)))
+            print(f"Average profit: +${round(mean(self.profits), 2)}")
         else:
             print("Average profit: $0")
         if len(self.losses) > 0:
-            print("Average loss: -$" + str(round(mean(self.losses), 2))[1:])
+            print(f"Average loss: -${str(round(mean(self.losses), 2))[1:]}")
         else:
             print("Average loss: $0")
         if len(self.profit_pips) > 0:
-            print("Max pips made: " + str(max(self.profit_pips)))
+            print(f"Max pips made: {max(self.profit_pips)}")
         else:
             print("Max pips made: 0")
         if len(self.loss_pips) > 0:
-            print("Max pips lost: " + str(min(self.loss_pips)))
+            print(f"Max pips lost: {min(self.loss_pips)}")
         else:
             print("Max pips lost: 0")
         if len(self.profit_pips) > 0:
-            print("Average pips made: " + str(round(mean(self.profit_pips), 1)))
+            print(f"Average pips made: {round(mean(self.profit_pips), 1)}")
         else:
             print("Average pips made: 0")
         if len(self.loss_pips) > 0:
-            print("Average pips lost: " + str(round(mean(self.loss_pips), 1)))
+            print(f"Average pips lost: {round(mean(self.loss_pips), 1)}")
         else:
             print("Average pip lost: 0")
-        print("Total trades: " + str(self.total_trades))
+        print(f"Total trades: {self.total_trades}")
         if self.total_trades != 0:
             print(f"Trading rate: {(self.trading_period[1] - self.trading_period[0]) / self.total_trades}")
         else:
             print("Trading rate: 0")
-        print("Pips: " + str(self.pips))
+        print(f"Pips: {self.pips}")
         print(f"Testing period: {self.trading_period[1] - self.trading_period[0]}")
         print("\n")
 
@@ -164,7 +171,8 @@ class Account:
         ax.setLabel('right', 'Balance', **labelStyle)
         ax.setLabel('bottom', 'Date', **labelStyle)
 
-        fplt.plot(self.x, self.y, width=2, color="white", ax=ax)
+        fplt.plot(self.x, self.balance_y, width=2, legend='Balance', color="white", ax=ax)
+        fplt.plot(self.x, self.free_margin_y, width=2, legend='Free margin', color="green", ax=ax)
         fplt.show()
 
 
@@ -193,8 +201,11 @@ def backtester(strategy: dict, params: list, plotting=False, verbose=False, cush
     account = Account(pairs_num=len(pairs), bars_len=min(lengths))
     account.trading_period.append(pairs_to_test[0].index[max(start_pos) + max(lengths) - min(lengths) + 2])
 
+    account.x = pairs_to_test[0].index
+
     for i in range(max(start_pos) + max(lengths) - min(lengths) + 2, min(lengths)):
-        if account.balance > 3 * account.lot_size * 100:
+        if account.free_margin > 3 * account.lot_size * 100:
+        # if account.balance > 3 * account.lot_size * 100:
 
             # Dynamically adjust the lot size based on the current balance
             if pairs_to_test[0].adjust_lot_size:
@@ -214,6 +225,13 @@ def backtester(strategy: dict, params: list, plotting=False, verbose=False, cush
                     index=i,
                 )
 
+            if len(account.open_positions_state) > 0:
+                account.free_margin = account.balance + sum(account.open_positions_state)
+            else:
+                account.free_margin = account.balance
+
+            account.open_positions_state = []
+
             if account.balance > account.balance_max:
                 account.balance_max = account.balance
 
@@ -224,14 +242,18 @@ def backtester(strategy: dict, params: list, plotting=False, verbose=False, cush
                 account.drawdown = 100 / account.balance_max * account.balance
 
             if plotting:
-                account.x.append(pairs_to_test[0].index[i])
-                account.y.append(account.balance)
+                account.balance_y[i] = account.balance
+                account.free_margin_y[i] = account.free_margin
         else:
             if plotting:
-                account.x.append(pairs_to_test[0].index[i])
-                account.y.append(account.balance)
+                account.balance_y[i] = account.balance
+                account.free_margin_y[i] = account.free_margin
 
             account.trading_period.append(pairs_to_test[0].index[i])
+            account.x = account.x[:i-1]
+            account.balance_y = account.balance_y[:i-1]
+            account.free_margin_y = account.free_margin_y[:i-1]
+
             print("Not enough free margin")
             print("\n")
             break
@@ -242,7 +264,7 @@ def backtester(strategy: dict, params: list, plotting=False, verbose=False, cush
     if plotting:
         if account.total_trades > 0:
             [pair.total_report(account) for pair in pairs_to_test]
-            account.total_report(pairs_to_test[0])
+            account.total_report()
             account.balance_plotter()
         else:
             print("No trades.")

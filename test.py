@@ -63,6 +63,9 @@ pairs = STRATEGIES["example_strategy"]['pairs']
 for pair in pairs:
     Parser(pair=pair, strategy=STRATEGIES["example_strategy"], save=True, start=START, end=END)
 
+# First run
+# Elapsed (with compilation) = 6.037937879562378
+
 # shutdown()
 # start = t.time()
 backtester(strategy=STRATEGIES["example_strategy"], params=params, plotting=True, verbose=True, cushion=0)

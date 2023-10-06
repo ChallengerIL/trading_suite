@@ -20,10 +20,10 @@ TIMEZONE = pytz.timezone('Europe/London')
 STRATEGIES = {
     "example_strategy": {
         "tfs": ["M1", "M5", "M15", "M30", "H1", "H4", "D1"],
-        "pairs": ['GBPUSD'],
+        "pairs": ['GBPUSD', 'EURUSD', 'AUDUSD', 'USDJPY', 'USDCAD', 'USDCHF', 'EURJPY'],  # , 'AUDUSD', 'USDCHF'],
         "indicators": {
             # "adx": {
-            #     "M15": {
+            #     "H1": {
             #         "p": [14],
             #         "plotting": {
             #             "color": ["white"],
@@ -46,13 +46,13 @@ STRATEGIES = {
             #         },
             #     },
             # },
-            "vwap": {
-                "M1": {
-                    "plotting": {
-                        "color": ["teal"],
-                    },
-                },
-            },
+            # "vwap": {
+            #     "M1": {
+            #         "plotting": {
+            #             "color": ["teal"],
+            #         },
+            #     },
+            # },
             # "irb": {
             #     "D1": {
             #         "percentage": [45],
@@ -142,53 +142,53 @@ STRATEGIES = {
             #     },
             # },
             # "wr": {
-            #     "M1": {
-            #         "p": [21],
-            #         "plotting": {
-            #             "color": ["white"],
-            #             "ax": [1],
-            #             "levels": [[-20, -80]],
-            #             "ymin": -100,
-            #             "ymax": 0,
-            #         },
-            #     },
-            #     "M15": {
-            #         "p": [21],
-            #         "plotting": {
-            #             "color": ["green"],
-            #             "ax": [2],
-            #             "levels": [[-20, -80]],
-            #             "ymin": -100,
-            #             "ymax": 0,
-            #         },
-            #     },
-            #     "H1": {
-            #         "p": [21],
-            #         "plotting": {
-            #             "color": ["red"],
-            #             "ax": [3],
-            #             "levels": [[-20, -80]],
-            #             "ymin": -100,
-            #             "ymax": 0,
-            #         },
-            #     },
+            #     # "M1": {
+            #     #     "p": [21],
+            #     #     "plotting": {
+            #     #         "color": ["white"],
+            #     #         "ax": [1],
+            #     #         "levels": [[-20, -80]],
+            #     #         "ymin": -100,
+            #     #         "ymax": 0,
+            #     #     },
+            #     # },
+            #     # "M15": {
+            #     #     "p": [21],
+            #     #     "plotting": {
+            #     #         "color": ["green"],
+            #     #         "ax": [2],
+            #     #         "levels": [[-20, -80]],
+            #     #         "ymin": -100,
+            #     #         "ymax": 0,
+            #     #     },
+            #     # },
+            #     # "H1": {
+            #     #     "p": [21],
+            #     #     "plotting": {
+            #     #         "color": ["red"],
+            #     #         "ax": [2],
+            #     #         "levels": [[-20, -80]],
+            #     #         "ymin": -100,
+            #     #         "ymax": 0,
+            #     #     },
+            #     # },
             # },
             # "tsv": {
             #     "H1": {
             #         "p": [13],
             #         "ma_p": [7],
             #         "plotting": {
-            #             "ax": [1],
+            #             "ax": [2],
             #         },
             #     },
             # },
-            # "ichimoku_cloud": {
-            #     "M1": {
-            #         "plotting": {
-            #             "color": [["white", "white"]],
-            #         },
-            #     },
-            # },
+            "ichimoku_cloud": {
+                "H1": {
+                    "plotting": {
+                        "color": [["red", "green"]],
+                    },
+                },
+            },
             # "wma": {
             #     "H1": {
             #         "p": [12, 80],
@@ -222,13 +222,6 @@ STRATEGIES = {
             #     },
             # },
             "hma": {
-                "H1": {
-                    "p": [12, 80],
-                    "slope": [1, 1],
-                    "plotting": {
-                        "color": ["green", "red"],
-                    },
-                },
                 "M1": {
                     "p": [12, 80],
                     "slope": [1, 1],
@@ -236,6 +229,48 @@ STRATEGIES = {
                         "color": ["white", "yellow"],
                     },
                 },
+                # "M5": {
+                #     "p": [12, 80],
+                #     "slope": [1, 1],
+                #     "plotting": {
+                #         "color": ["white", "yellow"],
+                #     },
+                # },
+                # "M15": {
+                #     "p": [12, 80],
+                #     "slope": [1, 1],
+                #     "plotting": {
+                #         "color": ["white", "yellow"],
+                #     },
+                # },
+                # "M30": {
+                #     "p": [12, 80],
+                #     "slope": [1, 1],
+                #     "plotting": {
+                #         "color": ["white", "yellow"],
+                #     },
+                # },
+                "H1": {
+                    "p": [12, 80],
+                    "slope": [1, 1],
+                    "plotting": {
+                        "color": ["green", "red"],
+                    },
+                },
+                # "H4": {
+                #     "p": [12, 80],
+                #     "slope": [1, 1],
+                #     "plotting": {
+                #         "color": ["white", "yellow"],
+                #     },
+                # },
+                # "D1": {
+                #     "p": [12, 80],
+                #     "slope": [1, 1],
+                #     "plotting": {
+                #         "color": ["white", "yellow"],
+                #     },
+                # },
                 # "H1": {
                 #     "p": [12, 80],
                 #     "slope": [1, 1],
@@ -244,32 +279,32 @@ STRATEGIES = {
                 #     },
                 # },
             },
-            # "tma": {
-            #     "M1": {
-            #         "p": [20],
-            #         "atr_p": [100],
-            #         "multiplier": [2],
-            #         "plotting": {
-            #             "color": [["white", "white", "white"]],
-            #         },
-            #     },
-            #     "M15": {
-            #         "p": [20],
-            #         "atr_p": [100],
-            #         "multiplier": [2],
-            #         "plotting": {
-            #             "color": [["red", "red", "red"]],
-            #         },
-            #     },
-            #     "H1": {
-            #         "p": [20],
-            #         "atr_p": [100],
-            #         "multiplier": [2],
-            #         "plotting": {
-            #             "color": [["blue", "blue", "blue"]],
-            #         },
-            #     },
-            # },
+            "tma": {
+                # "M1": {
+                #     "p": [20],
+                #     "atr_p": [100],
+                #     "multiplier": [2],
+                #     "plotting": {
+                #         "color": [["white", "white", "white"]],
+                #     },
+                # },
+                # "M15": {
+                #     "p": [20],
+                #     "atr_p": [100],
+                #     "multiplier": [2],
+                #     "plotting": {
+                #         "color": [["red", "red", "red"]],
+                #     },
+                # },
+                "H1": {
+                    "p": [20],
+                    "atr_p": [100],
+                    "multiplier": [2],
+                    "plotting": {
+                        "color": [["blue", "blue", "blue"]],
+                    },
+                },
+            },
         },
         "bounds_low": [20, 20, -20, 1, 10, 5, 5, 10],
         "bounds_high": [300, 100, -1, 20, 100, 30, 15, 30],
@@ -280,7 +315,7 @@ STRATEGIES = {
         "update_time": time(0, 0, 0, tzinfo=TIMEZONE),
         "update_period": 25,
         "plotting_rows": 2,
-        "training_period": 500,
+        "training_period": 2000,
     },
 }
 
