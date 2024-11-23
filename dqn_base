@@ -4,166 +4,549 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from collections import deque
 import random
-from sklearn.preprocessing import StandardScaler
-from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization, Conv1D, MaxPooling1D, Flatten
+from sklearn.preprocessing import RobustScaler
+from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization, Conv1D, MaxPooling1D
 from tensorflow.keras.regularizers import l2
-
-# Switch to actual market data
-# Adjust the indicators combination, ensure there's no lookahead bias while calculating the indicators
-# Split the data into training and test batches
-# Enhance the model structure
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 
-class EnhancedTradingEnvironment:
-    def __init__(self, data, window_size=30, commission=0.001, spread=0.0002):
-        self.data = data
+class TradingEnvironment:
+
+    def __init__(
+            self,
+            data: pd.DataFrame,
+            window_size: int = 30,
+            commission: float = 0.001,
+            spread: float = 0.0002,
+            risk_free_rate: float = 0.02,
+            train_split: float = 0.8
+    ):
+        self.data = data.copy()
         self.window_size = window_size
         self.commission = commission
         self.spread = spread
+        self.risk_free_rate = risk_free_rate
+
+        self.max_position_duration = 20
+        self.position_penalty_threshold = 10
+        self.inactivity_penalty = 0.001
+        self.max_position_size = 0.2
+        self.stop_loss = 0.02
+        self.trailing_stop = 0.03
 
         self.base_features = ['Open', 'High', 'Low', 'Close', 'Volume']
-        self.tech_features = ['SMA_10', 'SMA_30', 'RSI', 'MACD',
-                              'BB_middle', 'BB_upper', 'BB_lower', 'Volume_SMA']
+        self.tech_features = [
+            'SMA_10', 'SMA_30', 'EMA_10', 'EMA_30', 'RSI',
+            'MACD', 'MACD_Signal', 'BB_middle', 'BB_upper', 'BB_lower',
+            'ATR', 'OBV', 'ADX', 'Stochastic_K', 'Stochastic_D',
+            'MFI', 'Volume_SMA'
+        ]
         self.all_features = self.base_features + self.tech_features
+
+        self._initialize_indicator_buffers()
+
+        train_idx = int(len(data) * train_split)
+        self.train_data = data.iloc[:train_idx]
+        self.scaler = self._fit_scaler(self.train_data)
 
         self.n_features = len(self.all_features)
         self.state_size = self.window_size * self.n_features
         self.action_size = 3
-        self.scaler = StandardScaler()
-        self._prepare_data()
+
         self.reset()
 
-    def _prepare_data(self):
-        enhanced_data = self._calculate_technical_indicators()
-        self.scaled_data = self.scaler.fit_transform(enhanced_data[self.all_features])
-        self.total_steps = len(self.data) - self.window_size
+    def _initialize_indicator_buffers(self):
+        buffer_size = max(30, 14 + 3)
+        self.price_buffer = deque(maxlen=buffer_size)
+        self.volume_buffer = deque(maxlen=buffer_size)
+        self.high_buffer = deque(maxlen=buffer_size)
+        self.low_buffer = deque(maxlen=buffer_size)
 
-    def get_state(self):
-        window = self.scaled_data[self.current_step:self.current_step + self.window_size]
-        return window.flatten()
+        self.ema_10_alpha = 2.0 / (10 + 1)
+        self.ema_30_alpha = 2.0 / (30 + 1)
 
-    def _calculate_technical_indicators(self):
-        df = self.data.copy()
-        df['SMA_10'] = df['Close'].rolling(window=10).mean()
-        df['SMA_30'] = df['Close'].rolling(window=30).mean()
+        self.ema_10 = None
+        self.ema_30 = None
+        self.macd_12 = None
+        self.macd_26 = None
+        self.macd_signal = None
 
-        delta = df['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        df['RSI'] = 100 - (100 / (1 + rs))
+        self.prev_obv = 0
+        self.prev_high = None
+        self.prev_low = None
+        self.prev_close = None
 
-        exp1 = df['Close'].ewm(span=12, adjust=False).mean()
-        exp2 = df['Close'].ewm(span=26, adjust=False).mean()
-        df['MACD'] = exp1 - exp2
+    def _fit_scaler(self, train_data: pd.DataFrame) -> RobustScaler:
+        scaler = RobustScaler()
+        base_features_df = train_data[self.base_features]
+        scaler.fit(base_features_df)
 
-        df['BB_middle'] = df['Close'].rolling(window=20).mean()
-        df['BB_upper'] = df['BB_middle'] + 2 * df['Close'].rolling(window=20).std()
-        df['BB_lower'] = df['BB_middle'] - 2 * df['Close'].rolling(window=20).std()
+        return scaler
 
-        df['Volume_SMA'] = df['Volume'].rolling(window=20).mean()
-        df = df.bfill()
-        return df
+    def _calculate_ema(self, price: float, prev_ema: float, alpha: float) -> float:
+        if prev_ema is None:
+            return price
 
-    def _calculate_transaction_price(self, base_price, is_buy):
-        if is_buy:
-            return base_price * (1 + self.spread / 2)
-        return base_price * (1 - self.spread / 2)
+        return alpha * price + (1 - alpha) * prev_ema
 
-    def reset(self):
-        self.current_step = 0
-        self.cash = 10000
-        self.shares = 0
-        self.total_value_history = [self.cash]
-        self.trades = []
-        self.positions = []
-        self.current_position_start = None
-        self.peak_value = self.cash
-        return self.get_state()
+    def _calculate_rolling_metrics(self, step_idx: int) -> dict:
+        current_data = self.data.iloc[step_idx]
+        price = current_data['Close']
+        volume = current_data['Volume']
+        high = current_data['High']
+        low = current_data['Low']
 
-    def step(self, action):
+        self.price_buffer.append(price)
+        self.volume_buffer.append(volume)
+        self.high_buffer.append(high)
+        self.low_buffer.append(low)
+
+        metrics = {}
+
+        if len(self.price_buffer) >= 10:
+            metrics['SMA_10'] = np.mean(list(self.price_buffer)[-10:])
+        else:
+            metrics['SMA_10'] = price
+
+        if len(self.price_buffer) >= 30:
+            metrics['SMA_30'] = np.mean(list(self.price_buffer)[-30:])
+        else:
+            metrics['SMA_30'] = price
+
+        self.ema_10 = self._calculate_ema(price, self.ema_10, self.ema_10_alpha)
+        self.ema_30 = self._calculate_ema(price, self.ema_30, self.ema_30_alpha)
+        metrics['EMA_10'] = self.ema_10
+        metrics['EMA_30'] = self.ema_30
+
+        alpha_12 = 2.0 / (12 + 1)
+        alpha_26 = 2.0 / (26 + 1)
+        self.macd_12 = self._calculate_ema(price, self.macd_12, alpha_12)
+        self.macd_26 = self._calculate_ema(price, self.macd_26, alpha_26)
+
+        macd = self.macd_12 - self.macd_26
+        metrics['MACD'] = macd
+
+        self.macd_signal = self._calculate_ema(macd, self.macd_signal, 2.0 / (9 + 1))
+        metrics['MACD_Signal'] = self.macd_signal
+
+        if len(self.price_buffer) >= 20:
+            rolling_mean = np.mean(list(self.price_buffer)[-20:])
+            rolling_std = np.std(list(self.price_buffer)[-20:])
+            metrics['BB_middle'] = rolling_mean
+            metrics['BB_upper'] = rolling_mean + (2 * rolling_std)
+            metrics['BB_lower'] = rolling_mean - (2 * rolling_std)
+        else:
+            metrics['BB_middle'] = price
+            metrics['BB_upper'] = price
+            metrics['BB_lower'] = price
+
+        if len(self.price_buffer) >= 2:
+            if len(self.price_buffer) >= 14:
+                avg_gain = np.mean([max(price - self.price_buffer[-i - 2], 0)
+                                    for i in range(13)])
+                avg_loss = np.mean([max(self.price_buffer[-i - 2] - price, 0)
+                                    for i in range(13)])
+
+                if avg_loss == 0:
+                    metrics['RSI'] = 100
+                else:
+                    rs = avg_gain / avg_loss
+                    metrics['RSI'] = 100 - (100 / (1 + rs))
+            else:
+                metrics['RSI'] = 50
+        else:
+            metrics['RSI'] = 50
+
+        if self.prev_high is not None:
+            tr = max([
+                high - low,
+                abs(high - self.prev_close),
+                abs(low - self.prev_close)
+            ])
+
+            if len(self.price_buffer) >= 14:
+                metrics['ATR'] = np.mean([tr] + [max(
+                    self.high_buffer[-i - 1] - self.low_buffer[-i - 1],
+                    abs(self.high_buffer[-i - 1] - self.price_buffer[-i - 2]),
+                    abs(self.low_buffer[-i - 1] - self.price_buffer[-i - 2])
+                ) for i in range(13)])
+            else:
+                metrics['ATR'] = tr
+        else:
+            metrics['ATR'] = high - low
+
+        if self.prev_close is not None:
+            if price > self.prev_close:
+                self.prev_obv += volume
+
+            elif price < self.prev_close:
+                self.prev_obv -= volume
+
+        metrics['OBV'] = self.prev_obv
+
+        if len(self.price_buffer) >= 14:
+            low_14 = min(list(self.low_buffer)[-14:])
+            high_14 = max(list(self.high_buffer)[-14:])
+
+            if high_14 - low_14 > 0:
+                k = 100 * (price - low_14) / (high_14 - low_14)
+            else:
+                k = 50
+
+            metrics['Stochastic_K'] = k
+
+            if len(self.price_buffer) >= 16:
+                k_values = []
+
+                for i in range(3):
+                    if i + 14 <= len(self.price_buffer):
+                        period_low = min(list(self.low_buffer)[-(i + 14):-i] if i > 0 else list(self.low_buffer)[-14:])
+                        period_high = max(
+                            list(self.high_buffer)[-(i + 14):-i] if i > 0 else list(self.high_buffer)[-14:])
+
+                        if period_high - period_low > 0:
+                            period_k = 100 * (self.price_buffer[-(i + 1)] - period_low) / (period_high - period_low)
+                        else:
+                            period_k = 50
+
+                        k_values.append(period_k)
+
+                metrics['Stochastic_D'] = np.mean(k_values) if k_values else k
+            else:
+                metrics['Stochastic_D'] = k
+        else:
+            metrics['Stochastic_K'] = 50
+            metrics['Stochastic_D'] = 50
+
+        if len(self.volume_buffer) >= 20:
+            metrics['Volume_SMA'] = np.mean(list(self.volume_buffer)[-20:])
+        else:
+            metrics['Volume_SMA'] = volume
+
+        if len(self.price_buffer) >= 14:
+            prev_typical_prices = [
+                (self.high_buffer[-i - 1] + self.low_buffer[-i - 1] + self.price_buffer[-i - 1]) / 3
+                for i in range(13)
+            ]
+
+            positive_flows = sum(
+                (self.high_buffer[-i - 1] + self.low_buffer[-i - 1] + self.price_buffer[-i - 1]) / 3 *
+                self.volume_buffer[-i - 1]
+                for i in range(14)
+                if i < len(prev_typical_prices) and
+                (self.high_buffer[-i - 1] + self.low_buffer[-i - 1] + self.price_buffer[-i - 1]) / 3 >
+                (self.high_buffer[-i - 2] + self.low_buffer[-i - 2] + self.price_buffer[-i - 2]) / 3
+            )
+
+            negative_flows = sum(
+                (self.high_buffer[-i - 1] + self.low_buffer[-i - 1] + self.price_buffer[-i - 1]) / 3 *
+                self.volume_buffer[-i - 1]
+                for i in range(14)
+                if i < len(prev_typical_prices) and
+                (self.high_buffer[-i - 1] + self.low_buffer[-i - 1] + self.price_buffer[-i - 1]) / 3 <
+                (self.high_buffer[-i - 2] + self.low_buffer[-i - 2] + self.price_buffer[-i - 2]) / 3
+            )
+
+            if negative_flows == 0:
+                metrics['MFI'] = 100
+            else:
+                money_ratio = positive_flows / negative_flows
+                metrics['MFI'] = 100 - (100 / (1 + money_ratio))
+        else:
+            metrics['MFI'] = 50
+
+        if len(self.price_buffer) >= 2:
+            if self.prev_close is not None:
+                tr = max([
+                    high - low,
+                    abs(high - self.prev_close),
+                    abs(low - self.prev_close)
+                ])
+            else:
+                tr = high - low
+
+            if self.prev_high is not None and self.prev_low is not None:
+                up_move = high - self.prev_high
+                down_move = self.prev_low - low
+
+                plus_dm = max(0, up_move) if up_move > down_move else 0
+                minus_dm = max(0, down_move) if down_move > up_move else 0
+            else:
+                plus_dm = 0
+                minus_dm = 0
+
+            if not hasattr(self, 'smoothed_tr'):
+                self.smoothed_tr = tr
+                self.smoothed_plus_dm = plus_dm
+                self.smoothed_minus_dm = minus_dm
+            else:
+                alpha = 1 / 14
+                self.smoothed_tr = (self.smoothed_tr * (1 - alpha)) + (tr * alpha)
+                self.smoothed_plus_dm = (self.smoothed_plus_dm * (1 - alpha)) + (plus_dm * alpha)
+                self.smoothed_minus_dm = (self.smoothed_minus_dm * (1 - alpha)) + (minus_dm * alpha)
+
+            if self.smoothed_tr > 0:
+                plus_di = 100 * (self.smoothed_plus_dm / self.smoothed_tr)
+                minus_di = 100 * (self.smoothed_minus_dm / self.smoothed_tr)
+
+                di_sum = abs(plus_di) + abs(minus_di)
+                if di_sum > 0:
+                    dx = 100 * (abs(plus_di - minus_di) / di_sum)
+                else:
+                    dx = 0
+
+                if not hasattr(self, 'adx'):
+                    self.adx = dx
+                else:
+                    self.adx = (self.adx * 13 + dx) / 14
+
+                metrics['ADX'] = self.adx
+            else:
+                metrics['ADX'] = 0
+        else:
+            metrics['ADX'] = 0
+
+        self.prev_high = high
+        self.prev_low = low
+        self.prev_close = price
+
+        return metrics
+
+    def get_state(self) -> np.ndarray:
+        if self.current_step < self.window_size:
+            padding_size = self.window_size - self.current_step - 1
+            state_matrix = np.zeros((self.window_size, len(self.all_features)))
+
+            for i in range(self.current_step + 1):
+                current_features = self._get_features(i)
+                state_matrix[padding_size + i] = current_features
+
+        else:
+            state_matrix = np.array([
+                self._get_features(i)
+                for i in range(
+                    self.current_step - self.window_size + 1,
+                    self.current_step + 1
+                )
+            ])
+
+        return state_matrix.flatten()
+
+    def _get_features(self, idx: int) -> np.ndarray:
+        base_data = self.data.iloc[idx:idx + 1][self.base_features]
+
+        tech_data = self._calculate_rolling_metrics(idx)
+        tech_values = [tech_data[feature] for feature in self.tech_features]
+
+        scaled_base = self.scaler.transform(base_data)
+
+        all_features = np.concatenate([
+            scaled_base.flatten(),
+            tech_values
+        ])
+
+        return all_features
+
+    def step(self, action: int) -> tuple:
         current_price = self.data.iloc[self.current_step + self.window_size]['Close']
-        reward = 0
+
+        if self.shares > 0:
+            self.current_holding_period += 1
+            self.consecutive_holds += 1
+            self.highest_price = max(self.highest_price, current_price)
+        else:
+            self.current_holding_period = 0
+            self.consecutive_holds = 0
+
         position_reward = 0
+        holding_penalty = 0
         trading_cost = 0
 
-        if action == 0:
-            if self.cash > current_price:
-                transaction_price = self._calculate_transaction_price(current_price, True)
-                max_shares = self.cash // transaction_price
-                shares_to_buy = max_shares // 2
+        if self.current_holding_period >= self.max_position_duration:
+            action = 1
 
+        if self.current_holding_period > self.position_penalty_threshold:
+            holding_penalty = -0.001 * (self.current_holding_period - self.position_penalty_threshold)
+
+        if self.consecutive_holds > self.position_penalty_threshold:
+            holding_penalty -= self.inactivity_penalty * self.consecutive_holds
+
+        if self._check_stop_loss(current_price):
+            action = 1
+
+        if action == 0 and self.shares == 0:
+            shares_to_buy = self._calculate_position_size(current_price)
+            if shares_to_buy > 0:
+                transaction_price = self._calculate_transaction_price(current_price, True)
                 commission_cost = shares_to_buy * transaction_price * self.commission
                 total_cost = (shares_to_buy * transaction_price) + commission_cost
 
                 if total_cost <= self.cash:
-                    self.shares += shares_to_buy
+                    self.shares = shares_to_buy
                     self.cash -= total_cost
+                    self.entry_price = transaction_price
+                    self.highest_price = transaction_price
                     self.trades.append(('buy', self.current_step + self.window_size, transaction_price))
                     trading_cost -= commission_cost
                     self.current_position_start = self.current_step
+                    self.consecutive_holds = 0
 
-        elif action == 1:
-            if self.shares > 0:
-                transaction_price = self._calculate_transaction_price(current_price, False)
-                commission_cost = self.shares * transaction_price * self.commission
-                total_revenue = (self.shares * transaction_price) - commission_cost
+        elif action == 1 and self.shares > 0:
+            transaction_price = self._calculate_transaction_price(current_price, False)
+            commission_cost = self.shares * transaction_price * self.commission
+            total_revenue = (self.shares * transaction_price) - commission_cost
 
-                self.cash += total_revenue
-                trading_cost -= commission_cost
-                self.trades.append(('sell', self.current_step + self.window_size, transaction_price))
+            self.cash += total_revenue
+            trading_cost -= commission_cost
+            self.trades.append(('sell', self.current_step + self.window_size, transaction_price))
 
-                if self.current_position_start is not None:
-                    position_duration = self.current_step - self.current_position_start
-                    self.positions.append(position_duration)
-                    position_reward = 0.1 * np.log(position_duration + 1)
+            if self.current_position_start is not None:
+                position_duration = self.current_step - self.current_position_start
+                self.total_holding_periods.append(position_duration)
 
-                self.shares = 0
-                self.current_position_start = None
+            self.shares = 0
+            self.entry_price = None
+            self.highest_price = 0
+            self.current_position_start = None
+            self.current_holding_period = 0
+            self.consecutive_holds = 0
 
-        self.current_step += 1
+        portfolio_value = self.cash + (self.shares * current_price)
+        self.total_value_history.append(portfolio_value)
 
-        total_value = self.cash + self.shares * current_price
-        self.total_value_history.append(total_value)
-
-        if total_value > self.peak_value:
-            self.peak_value = total_value
-
-        drawdown = (self.peak_value - total_value) / self.peak_value if self.peak_value > 0 else 0
-
+        reward = 0
         if len(self.total_value_history) > 1:
-            returns = (total_value - self.total_value_history[-2]) / self.total_value_history[-2]
-            reward = (returns * 100)
+            returns = (portfolio_value - self.total_value_history[-2]) / self.total_value_history[-2]
+            risk_adjusted_return = returns - (self.risk_free_rate / 252)
+
+            reward = (risk_adjusted_return * 100)
             reward += position_reward
             reward += trading_cost
-            reward -= 10 * drawdown
+            reward += holding_penalty
+
+            if len(self.trades) == 0:
+                reward -= 0.1
 
             if len(self.trades) > 2:
                 recent_trades = self.trades[-3:]
+
                 if len(set([t[0] for t in recent_trades])) == 1:
                     reward -= 0.5
 
-        done = self.current_step >= self.total_steps
+        self.current_step += 1
+        done = self.current_step >= len(self.data) - self.window_size
+
+        if done:
+            self._calculate_performance_metrics()
+
+            if len(self.trades) < 2:
+                reward -= 2.0
+
+            if self.total_holding_periods:
+                avg_holding_period = sum(self.total_holding_periods) / len(self.total_holding_periods)
+
+                if avg_holding_period > self.position_penalty_threshold:
+                    reward -= 0.5 * (avg_holding_period - self.position_penalty_threshold)
+
         next_state = self.get_state() if not done else None
 
         return next_state, reward, done
 
+    def _calculate_position_size(self, price: float) -> int:
+        portfolio_value = self.cash + (self.shares * price)
+        max_position = portfolio_value * self.max_position_size
+
+        return min(int(self.cash // price), int(max_position // price))
+
+    def _check_stop_loss(self, current_price: float) -> bool:
+        if self.shares > 0 and self.entry_price is not None:
+            loss_percentage = (current_price - self.entry_price) / self.entry_price
+            trailing_stop_price = self.highest_price * (1 - self.trailing_stop)
+            return loss_percentage <= -self.stop_loss or current_price <= trailing_stop_price
+
+        return False
+
+    def _calculate_transaction_price(self, base_price: float, is_buy: bool) -> float:
+        if is_buy:
+            return base_price * (1 + self.spread / 2)
+
+        return base_price * (1 - self.spread / 2)
+
+    def _calculate_performance_metrics(self):
+        returns = np.diff(self.total_value_history) / self.total_value_history[:-1]
+        excess_returns = returns - (self.risk_free_rate / 252)
+
+        self.sharpe_ratio = np.sqrt(252) * (np.mean(excess_returns) / np.std(excess_returns)) if len(returns) > 1 else 0
+
+        cumulative_returns = np.cumprod(1 + returns)
+        running_max = np.maximum.accumulate(cumulative_returns)
+        drawdowns = (running_max - cumulative_returns) / running_max
+        self.max_drawdown = np.max(drawdowns) if len(drawdowns) > 0 else 0
+
+        if len(self.trades) > 1:
+            profitable_trades = sum(1 for i in range(1, len(self.trades), 2)
+                                    if self.trades[i][2] > self.trades[i - 1][2])
+            self.win_rate = profitable_trades / (len(self.trades) // 2)
+        else:
+            self.win_rate = 0
+
+    def reset(self) -> np.ndarray:
+        self.current_step = 0
+        self.cash = 10000
+        self.shares = 0
+        self.entry_price = None
+        self.highest_price = 0
+        self.total_value_history = [self.cash]
+        self.trades = []
+        self.positions = []
+        self.current_position_start = None
+        self.current_holding_period = 0
+        self.consecutive_holds = 0
+        self.total_holding_periods = []
+
+        if hasattr(self, 'smoothed_tr'):
+            del self.smoothed_tr
+        if hasattr(self, 'smoothed_plus_dm'):
+            del self.smoothed_plus_dm
+        if hasattr(self, 'smoothed_minus_dm'):
+            del self.smoothed_minus_dm
+        if hasattr(self, 'adx'):
+            del self.adx
+
+        self._initialize_indicator_buffers()
+
+        return self.get_state()
+
+    def render(self, mode='human'):
+        portfolio_value = self.total_value_history[-1]
+        position = "Long" if self.shares > 0 else "None"
+        print(f"Step: {self.current_step}")
+        print(f"Portfolio Value: ${portfolio_value:.2f}")
+        print(f"Cash: ${self.cash:.2f}")
+        print(f"Position: {position}")
+        print(f"Number of Trades: {len(self.trades)}")
+        if len(self.trades) > 0:
+            print(f"Last Trade: {self.trades[-1]}")
+
 
 class AdvancedDQNAgent:
+
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = deque(maxlen=20000)
-        self.gamma = 0.95
+        self.memory = deque(maxlen=50000)
+        self.gamma = 0.99
         self.epsilon = 1.0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
         self.learning_rate = 0.0001
-        self.n_features = 13
+        self.n_features = 22
         self.model = self._build_model()
         self.target_model = self._build_model()
-        self.batch_size = 64
+        self.batch_size = 128
         self.min_replay_memory = 1000
+        self.prioritized_replay = True
+        self.update_target_frequency = 5
 
     def _build_model(self):
         sequence_length = self.state_size // self.n_features
@@ -171,85 +554,124 @@ class AdvancedDQNAgent:
         inputs = tf.keras.Input(shape=(self.state_size,))
         reshaped = tf.keras.layers.Reshape((sequence_length, self.n_features))(inputs)
 
-        x = Conv1D(64, 3, activation='relu', kernel_regularizer=l2(0.01), padding='same')(reshaped)
+        x = Conv1D(128, 3, activation='relu', kernel_regularizer=l2(0.01), padding='same')(reshaped)
         x = BatchNormalization()(x)
         x = MaxPooling1D(2)(x)
         x = Dropout(0.2)(x)
 
-        x = Conv1D(128, 3, activation='relu', kernel_regularizer=l2(0.01), padding='same')(x)
+        x = Conv1D(256, 3, activation='relu', kernel_regularizer=l2(0.01), padding='same')(x)
         x = BatchNormalization()(x)
         x = MaxPooling1D(2)(x)
         x = Dropout(0.2)(x)
 
-        x = LSTM(64, return_sequences=True)(x)
+        x = LSTM(128, return_sequences=True, recurrent_regularizer=l2(0.01))(x)
         x = Dropout(0.2)(x)
-        x = LSTM(32)(x)
+        x = LSTM(64, recurrent_regularizer=l2(0.01))(x)
         x = BatchNormalization()(x)
 
-        x = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(x)
-        x = BatchNormalization()(x)
-        x = Dropout(0.2)(x)
+        attention = Dense(64, activation='tanh')(x)
+        attention = Dense(1, activation='sigmoid')(attention)
+        x = tf.keras.layers.Multiply()([x, attention])
 
-        value_stream = Dense(16, activation='relu')(x)
-        value = Dense(1)(value_stream)
+        value_stream = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(x)
+        value_stream = BatchNormalization()(value_stream)
+        value_stream = Dense(1)(value_stream)
 
-        advantage_stream = Dense(16, activation='relu')(x)
-        advantage = Dense(self.action_size)(advantage_stream)
+        advantage_stream = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(x)
+        advantage_stream = BatchNormalization()(advantage_stream)
+        advantage_stream = Dense(self.action_size)(advantage_stream)
 
         outputs = tf.keras.layers.Add()([
-            value,
+            value_stream,
             tf.keras.layers.Subtract()([
-                advantage,
-                tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=1, keepdims=True))(advantage)
+                advantage_stream,
+                tf.keras.layers.Lambda(lambda x: tf.reduce_mean(x, axis=1, keepdims=True))(advantage_stream)
             ])
         ])
 
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
-            loss=tf.keras.losses.Huber()
+            loss=self._huber_loss
         )
 
         return model
+
+    def _huber_loss(self, y_true, y_pred, delta=1.0):
+        error = y_true - y_pred
+        abs_error = tf.abs(error)
+        quadratic = tf.minimum(abs_error, delta)
+        linear = abs_error - quadratic
+
+        return tf.reduce_mean(0.5 * tf.square(quadratic) + delta * linear)
+
+    def remember(self, state, action, reward, next_state, done):
+        if self.prioritized_replay:
+            priority = abs(reward) + 1e-6
+            self.memory.append((state, action, reward, next_state, done, priority))
+        else:
+            self.memory.append((state, action, reward, next_state, done))
 
     def replay(self):
         if len(self.memory) < self.min_replay_memory:
             return
 
-        minibatch = random.sample(self.memory, self.batch_size)
-
-        states = np.array([i[0] for i in minibatch])
-        actions = np.array([i[1] for i in minibatch])
-        rewards = np.array([i[2] for i in minibatch])
-        next_states = np.array([i[3] for i in minibatch])
-        dones = np.array([i[4] for i in minibatch])
-
-        assert states.shape[1] == self.state_size, f"State shape mismatch: {states.shape[1]} vs {self.state_size}"
+        if self.prioritized_replay:
+            priorities = np.array([x[5] for x in self.memory])
+            probabilities = priorities / sum(priorities)
+            indices = np.random.choice(len(self.memory), self.batch_size, p=probabilities)
+            minibatch = [self.memory[idx] for idx in indices]
+            states = np.array([x[0] for x in minibatch])
+            actions = np.array([x[1] for x in minibatch])
+            rewards = np.array([x[2] for x in minibatch])
+            next_states = np.array([x[3] for x in minibatch])
+            dones = np.array([x[4] for x in minibatch])
+        else:
+            minibatch = random.sample(self.memory, self.batch_size)
+            states = np.array([x[0] for x in minibatch])
+            actions = np.array([x[1] for x in minibatch])
+            rewards = np.array([x[2] for x in minibatch])
+            next_states = np.array([x[3] for x in minibatch])
+            dones = np.array([x[4] for x in minibatch])
 
         current_q_values = self.model.predict(states, verbose=0)
-        next_q_values = self.model.predict(next_states, verbose=0)
-        target_q_values = self.target_model.predict(next_states, verbose=0)
+        next_q_values_main = self.model.predict(next_states, verbose=0)
+        next_q_values_target = self.target_model.predict(next_states, verbose=0)
 
         for i in range(self.batch_size):
             if dones[i]:
                 current_q_values[i][actions[i]] = rewards[i]
             else:
-                best_action = np.argmax(next_q_values[i])
-                current_q_values[i][actions[i]] = rewards[i] + self.gamma * target_q_values[i][best_action]
+                best_action = np.argmax(next_q_values_main[i])
+                current_q_values[i][actions[i]] = rewards[i] + self.gamma * next_q_values_target[i][best_action]
 
-        self.model.fit(states, current_q_values, epochs=1, verbose=0, batch_size=self.batch_size)
+        callbacks = [
+            EarlyStopping(monitor='loss', patience=3, min_delta=1e-4),
+            ReduceLROnPlateau(monitor='loss', factor=0.1, patience=2)
+        ]
+
+        self.model.fit(
+            states,
+            current_q_values,
+            epochs=1,
+            verbose=0,
+            batch_size=self.batch_size,
+            callbacks=callbacks
+        )
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
-
-    def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
 
     def act(self, state, training=True):
         if training and np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
 
         act_values = self.model.predict(state.reshape(1, -1), verbose=0)
+
+        if training:
+            noise = np.random.normal(0, 0.1, self.action_size)
+            act_values += noise
+
         return np.argmax(act_values[0])
 
     def update_target_model(self):
@@ -320,15 +742,21 @@ def visualize_training(env, episode_rewards, total_value_history, episode):
     plt.show()
 
 
-def train_trading_agent(episodes=200, evaluation_interval=10):
+def train_trading_agent(episodes=500, evaluation_interval=10):
     data = create_realistic_market_data(n_points=1000)
-
-    env = EnhancedTradingEnvironment(data)
+    env = TradingEnvironment(data)
     agent = AdvancedDQNAgent(env.state_size, env.action_size)
 
     episode_rewards = []
-    best_reward = float('-inf')
+    best_sharpe = float('-inf')
     reward_window = deque(maxlen=10)
+
+    early_stopping = EarlyStopping(
+        monitor='mean_reward',
+        patience=20,
+        min_delta=0.01,
+        mode='max'
+    )
 
     for episode in range(episodes):
         state = env.reset()
@@ -337,7 +765,6 @@ def train_trading_agent(episodes=200, evaluation_interval=10):
 
         while not done:
             action = agent.act(state)
-
             next_state, reward, done = env.step(action)
             total_reward += reward
 
@@ -348,32 +775,39 @@ def train_trading_agent(episodes=200, evaluation_interval=10):
             if len(agent.memory) >= agent.min_replay_memory:
                 agent.replay()
 
-        if episode % 5 == 0:
+        if episode % agent.update_target_frequency == 0:
             agent.update_target_model()
 
         episode_rewards.append(total_reward)
         reward_window.append(total_reward)
         avg_reward = np.mean(reward_window)
 
-        if avg_reward > best_reward:
-            best_reward = avg_reward
+        if env.sharpe_ratio > best_sharpe:
+            best_sharpe = env.sharpe_ratio
             agent.model.save('best_trading_model.keras')
 
-        print(f"Episode: {episode + 1}/{episodes}")
+        print(f"\nEpisode: {episode + 1}/{episodes}")
         print(f"Total Reward: {total_reward:.2f}")
         print(f"Final Portfolio Value: ${env.total_value_history[-1]:.2f}")
+        print(f"Sharpe Ratio: {env.sharpe_ratio:.2f}")
+        print(f"Max Drawdown: {env.max_drawdown:.2%}")
+        print(f"Win Rate: {env.win_rate:.2%}")
         print(f"Epsilon: {agent.epsilon:.3f}")
         print(f"Average Reward (last 10): {avg_reward:.2f}")
         print("----------------------------------------")
 
-        if (episode + 1) % evaluation_interval == 0:
-            visualize_training(env, episode_rewards, env.total_value_history, episode + 1)
+        # if (episode + 1) % evaluation_interval == 0:
+        #     visualize_training(env, episode_rewards, env.total_value_history, episode + 1)
+
+        if early_stopping.on_epoch_end(episode, {'mean_reward': avg_reward}):
+            print("Early stopping triggered!")
+            break
 
     return agent, env, episode_rewards
 
 
-def evaluate_agent(agent, data, episodes=5):
-    env = EnhancedTradingEnvironment(data)
+def evaluate_agent(agent, data, episodes=10):
+    env = TradingEnvironment(data)
     evaluation_results = []
 
     for episode in range(episodes):
@@ -385,22 +819,24 @@ def evaluate_agent(agent, data, episodes=5):
             next_state, reward, done = env.step(action)
             state = next_state if not done else None
 
-        final_value = env.total_value_history[-1]
-        returns = (final_value - 10000) / 10000 * 100
-        num_trades = len(env.trades)
-
         result = {
             'episode': episode + 1,
-            'final_value': final_value,
-            'returns': returns,
-            'num_trades': num_trades
+            'final_value': env.total_value_history[-1],
+            'returns': (env.total_value_history[-1] - 10000) / 10000 * 100,
+            'num_trades': len(env.trades),
+            'sharpe_ratio': env.sharpe_ratio,
+            'max_drawdown': env.max_drawdown,
+            'win_rate': env.win_rate
         }
         evaluation_results.append(result)
 
-        print(f"Evaluation Episode {episode + 1}:")
-        print(f"Final Portfolio Value: ${final_value:.2f}")
-        print(f"Return: {returns:.2f}%")
-        print(f"Number of Trades: {num_trades}")
+        print(f"\nEvaluation Episode {episode + 1}:")
+        print(f"Final Portfolio Value: ${result['final_value']:.2f}")
+        print(f"Return: {result['returns']:.2f}%")
+        print(f"Sharpe Ratio: {result['sharpe_ratio']:.2f}")
+        print(f"Maximum Drawdown: {result['max_drawdown']:.2%}")
+        print(f"Win Rate: {result['win_rate']:.2%}")
+        print(f"Number of Trades: {result['num_trades']}")
         print("----------------------------------------")
 
     return evaluation_results
@@ -408,15 +844,28 @@ def evaluate_agent(agent, data, episodes=5):
 
 if __name__ == "__main__":
     trained_agent, final_env, rewards = train_trading_agent()
-    test_data = create_realistic_market_data(n_points=500)
-    evaluation_results = evaluate_agent(trained_agent, test_data)
 
-    returns = [result['returns'] for result in evaluation_results]
-    trades = [result['num_trades'] for result in evaluation_results]
+    bull_market_data = create_realistic_market_data(n_points=500, volatility=0.015)
+    bear_market_data = create_realistic_market_data(n_points=500, volatility=0.025)
 
-    print("\nEvaluation Summary:")
-    print(f"Average Return: {np.mean(returns):.2f}%")
-    print(f"Return Std Dev: {np.std(returns):.2f}%")
-    print(f"Average Trades per Episode: {np.mean(trades):.1f}")
-    print(f"Best Return: {max(returns):.2f}%")
-    print(f"Worst Return: {min(returns):.2f}%")
+    print("\nBull Market Evaluation:")
+    bull_results = evaluate_agent(trained_agent, bull_market_data)
+
+    print("\nBear Market Evaluation:")
+    bear_results = evaluate_agent(trained_agent, bear_market_data)
+
+    print("\nOverall Performance Summary:")
+    for market_type, results in [("Bull Market", bull_results), ("Bear Market", bear_results)]:
+        returns = [r['returns'] for r in results]
+        sharpe_ratios = [r['sharpe_ratio'] for r in results]
+        drawdowns = [r['max_drawdown'] for r in results]
+        win_rates = [r['win_rate'] for r in results]
+
+        print(f"\n{market_type} Results:")
+        print(f"Average Return: {np.mean(returns):.2f}%")
+        print(f"Return Std Dev: {np.std(returns):.2f}%")
+        print(f"Average Sharpe Ratio: {np.mean(sharpe_ratios):.2f}")
+        print(f"Average Max Drawdown: {np.mean(drawdowns):.2%}")
+        print(f"Average Win Rate: {np.mean(win_rates):.2%}")
+        print(f"Best Return: {max(returns):.2f}%")
+        print(f"Worst Return: {min(returns):.2f}%")
