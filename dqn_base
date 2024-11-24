@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 from collections import deque
 import random
 from sklearn.preprocessing import RobustScaler
-from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization, Conv1D, MaxPooling1D
+from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization, Conv1D, MaxPooling1D, Activation, Add, \
+    Layer, Concatenate
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 
 class TradingEnvironment:
@@ -529,57 +529,218 @@ class TradingEnvironment:
             print(f"Last Trade: {self.trades[-1]}")
 
 
+class SumTree:
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.tree = np.zeros(2 * capacity - 1)
+        self.data = np.zeros(capacity, dtype=object)
+        self.write = 0
+        self.n_entries = 0
+
+    def __len__(self):
+        return self.n_entries
+
+    def _propagate(self, idx, change):
+        parent = (idx - 1) // 2
+        self.tree[parent] += change
+        if parent != 0:
+            self._propagate(parent, change)
+
+    def _retrieve(self, idx, s):
+        left = 2 * idx + 1
+        right = left + 1
+
+        if left >= len(self.tree):
+            return idx
+
+        if s <= self.tree[left]:
+            return self._retrieve(left, s)
+        else:
+            return self._retrieve(right, s - self.tree[left])
+
+    def total(self):
+        return self.tree[0]
+
+    def add(self, priority, data):
+        idx = self.write + self.capacity - 1
+        self.data[self.write] = data
+        self.update(idx, priority)
+        self.write = (self.write + 1) % self.capacity
+        self.n_entries = min(self.n_entries + 1, self.capacity)
+
+    def update(self, idx, priority):
+        change = priority - self.tree[idx]
+        self.tree[idx] = priority
+        self._propagate(idx, change)
+
+    def get(self, s):
+        idx = self._retrieve(0, s)
+        dataIdx = idx - self.capacity + 1
+        return (idx, self.tree[idx], self.data[dataIdx])
+
+
+class MultiHeadAttention(Layer):
+
+    def __init__(self, head_size=32, num_heads=4):
+        super(MultiHeadAttention, self).__init__()
+        self.head_size = head_size
+        self.num_heads = num_heads
+
+    def build(self, input_shape):
+        self.query_dense = [Dense(self.head_size) for _ in range(self.num_heads)]
+        self.key_dense = [Dense(self.head_size) for _ in range(self.num_heads)]
+        self.value_dense = [Dense(self.head_size) for _ in range(self.num_heads)]
+        self.combine_heads = Dense(input_shape[-1])
+
+    def call(self, x):
+        attention_outputs = []
+
+        for i in range(self.num_heads):
+            query = self.query_dense[i](x)
+            key = self.key_dense[i](x)
+            value = self.value_dense[i](x)
+
+            score = tf.matmul(query, key, transpose_b=True)
+            score = score / tf.math.sqrt(tf.cast(self.head_size, tf.float32))
+            attention_weights = tf.nn.softmax(score, axis=-1)
+            head_output = tf.matmul(attention_weights, value)
+            attention_outputs.append(head_output)
+
+        multi_head_output = Concatenate()(attention_outputs)
+        return self.combine_heads(multi_head_output)
+
+
 class AdvancedDQNAgent:
 
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = deque(maxlen=50000)
+        self.memory_capacity = 50000
+        self.memory = SumTree(self.memory_capacity)
         self.gamma = 0.99
         self.epsilon = 1.0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
         self.learning_rate = 0.0001
         self.n_features = 22
+        self.grad_clip_norm = 1.0
+        self.action_noise_sigma = 0.1
         self.model = self._build_model()
         self.target_model = self._build_model()
+
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        self.optimizer.clipnorm = self.grad_clip_norm
+
         self.batch_size = 128
         self.min_replay_memory = 1000
-        self.prioritized_replay = True
         self.update_target_frequency = 5
+        self.n_step = 3
+        self.n_step_buffer = deque(maxlen=self.n_step)
+        self.per_alpha = 0.6
+        self.per_beta = 0.4
+        self.per_beta_increment = 0.001
+        self.per_epsilon = 1e-6
+
+    @tf.function(reduce_retracing=True)
+    def train_step(self, states, targets, sample_weights):
+        with tf.GradientTape() as tape:
+            predictions = self.model(states, training=True)
+            element_wise_loss = self._huber_loss(targets, predictions)
+            per_sample_loss = tf.reduce_mean(element_wise_loss, axis=1)
+            weighted_loss = tf.reduce_mean(sample_weights * per_sample_loss)
+
+        gradients = tape.gradient(weighted_loss, self.model.trainable_variables)
+        gradients, _ = tf.clip_by_global_norm(gradients, self.grad_clip_norm)
+        self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
+        return weighted_loss
 
     def _build_model(self):
         sequence_length = self.state_size // self.n_features
-
         inputs = tf.keras.Input(shape=(self.state_size,))
         reshaped = tf.keras.layers.Reshape((sequence_length, self.n_features))(inputs)
 
-        x = Conv1D(128, 3, activation='relu', kernel_regularizer=l2(0.01), padding='same')(reshaped)
-        x = BatchNormalization()(x)
-        x = MaxPooling1D(2)(x)
-        x = Dropout(0.2)(x)
+        conv1 = Conv1D(128, 3, padding='same')(reshaped)
+        conv1 = BatchNormalization()(conv1)
+        conv1 = Activation('relu')(conv1)
+        conv1 = Dropout(0.2)(conv1)
+        conv1_residual = conv1
 
-        x = Conv1D(256, 3, activation='relu', kernel_regularizer=l2(0.01), padding='same')(x)
-        x = BatchNormalization()(x)
-        x = MaxPooling1D(2)(x)
-        x = Dropout(0.2)(x)
+        conv2 = Conv1D(128, 3, padding='same')(conv1)
+        conv2 = BatchNormalization()(conv2)
+        conv2 = Activation('relu')(conv2)
+        conv2 = Dropout(0.2)(conv2)
 
-        x = LSTM(128, return_sequences=True, recurrent_regularizer=l2(0.01))(x)
-        x = Dropout(0.2)(x)
-        x = LSTM(64, recurrent_regularizer=l2(0.01))(x)
-        x = BatchNormalization()(x)
+        conv2 = Add()([conv2, conv1_residual])
+        conv2 = MaxPooling1D(2)(conv2)
 
-        attention = Dense(64, activation='tanh')(x)
-        attention = Dense(1, activation='sigmoid')(attention)
-        x = tf.keras.layers.Multiply()([x, attention])
+        conv3 = Conv1D(256, 3, padding='same')(conv2)
+        conv3 = BatchNormalization()(conv3)
+        conv3 = Activation('relu')(conv3)
+        conv3 = Dropout(0.2)(conv3)
+        conv3_residual = conv3
 
-        value_stream = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(x)
+        conv4 = Conv1D(256, 3, padding='same')(conv3)
+        conv4 = BatchNormalization()(conv4)
+        conv4 = Activation('relu')(conv4)
+        conv4 = Dropout(0.2)(conv4)
+
+        conv4 = Add()([conv4, conv3_residual])
+        conv4 = MaxPooling1D(2)(conv4)
+
+        attention_output = MultiHeadAttention(head_size=32, num_heads=4)(conv4)
+
+        lstm1 = LSTM(128, return_sequences=True, recurrent_regularizer=l2(0.01))(attention_output)
+        lstm1 = Dropout(0.2)(lstm1)
+        lstm2 = LSTM(64, recurrent_regularizer=l2(0.01))(lstm1)
+        lstm2 = BatchNormalization()(lstm2)
+
+        class NoisyDense(Layer):
+            def __init__(self, units, activation=None):
+                super(NoisyDense, self).__init__()
+                self.units = units
+                self.activation = tf.keras.activations.get(activation)
+
+            def build(self, input_shape):
+                self.w_mu = self.add_weight(
+                    shape=(input_shape[-1], self.units),
+                    initializer='glorot_uniform',
+                    trainable=True)
+                self.w_sigma = self.add_weight(
+                    shape=(input_shape[-1], self.units),
+                    initializer='glorot_uniform',
+                    trainable=True)
+                self.b_mu = self.add_weight(
+                    shape=(self.units,),
+                    initializer='zeros',
+                    trainable=True)
+                self.b_sigma = self.add_weight(
+                    shape=(self.units,),
+                    initializer='zeros',
+                    trainable=True)
+
+            def call(self, inputs, training=None):
+                if training:
+                    w_epsilon = tf.random.normal(self.w_mu.shape)
+                    b_epsilon = tf.random.normal(self.b_mu.shape)
+                    w = self.w_mu + self.w_sigma * w_epsilon
+                    b = self.b_mu + self.b_sigma * b_epsilon
+                else:
+                    w = self.w_mu
+                    b = self.b_mu
+
+                output = tf.matmul(inputs, w) + b
+                if self.activation is not None:
+                    output = self.activation(output)
+                return output
+
+        value_stream = NoisyDense(32, activation='relu')(lstm2)
         value_stream = BatchNormalization()(value_stream)
-        value_stream = Dense(1)(value_stream)
+        value_stream = NoisyDense(1)(value_stream)
 
-        advantage_stream = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(x)
+        advantage_stream = NoisyDense(32, activation='relu')(lstm2)
         advantage_stream = BatchNormalization()(advantage_stream)
-        advantage_stream = Dense(self.action_size)(advantage_stream)
+        advantage_stream = NoisyDense(self.action_size)(advantage_stream)
 
         outputs = tf.keras.layers.Add()([
             value_stream,
@@ -590,89 +751,127 @@ class AdvancedDQNAgent:
         ])
 
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
+        optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        optimizer.clipnorm = self.grad_clip_norm
+
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=self.learning_rate),
+            optimizer=optimizer,
             loss=self._huber_loss
         )
 
         return model
+
+    def _compute_td_error(self, state, action, reward, next_state, done):
+        current_q = self.model.predict(state.reshape(1, -1), verbose=0)[0][action]
+        if done:
+            target_q = reward
+        else:
+            next_q_values = self.target_model.predict(next_state.reshape(1, -1), verbose=0)[0]
+            target_q = reward + self.gamma * np.max(next_q_values)
+        return abs(target_q - current_q)
+
+    def remember(self, state, action, reward, next_state, done):
+        self.n_step_buffer.append((state, action, reward, next_state, done))
+
+        if len(self.n_step_buffer) < self.n_step:
+            return
+
+        state, action, n_step_reward, next_state, done = self.n_step_buffer[0]
+        for i in range(1, self.n_step):
+            if self.n_step_buffer[i][4]:
+                break
+            n_step_reward += self.gamma ** i * self.n_step_buffer[i][2]
+
+        td_error = self._compute_td_error(state, action, n_step_reward, next_state, done)
+        priority = (td_error + self.per_epsilon) ** self.per_alpha
+
+        self.memory.add(priority, (state, action, n_step_reward, next_state, done))
 
     def _huber_loss(self, y_true, y_pred, delta=1.0):
         error = y_true - y_pred
         abs_error = tf.abs(error)
         quadratic = tf.minimum(abs_error, delta)
         linear = abs_error - quadratic
-
-        return tf.reduce_mean(0.5 * tf.square(quadratic) + delta * linear)
-
-    def remember(self, state, action, reward, next_state, done):
-        if self.prioritized_replay:
-            priority = abs(reward) + 1e-6
-            self.memory.append((state, action, reward, next_state, done, priority))
-        else:
-            self.memory.append((state, action, reward, next_state, done))
-
-    def replay(self):
-        if len(self.memory) < self.min_replay_memory:
-            return
-
-        if self.prioritized_replay:
-            priorities = np.array([x[5] for x in self.memory])
-            probabilities = priorities / sum(priorities)
-            indices = np.random.choice(len(self.memory), self.batch_size, p=probabilities)
-            minibatch = [self.memory[idx] for idx in indices]
-            states = np.array([x[0] for x in minibatch])
-            actions = np.array([x[1] for x in minibatch])
-            rewards = np.array([x[2] for x in minibatch])
-            next_states = np.array([x[3] for x in minibatch])
-            dones = np.array([x[4] for x in minibatch])
-        else:
-            minibatch = random.sample(self.memory, self.batch_size)
-            states = np.array([x[0] for x in minibatch])
-            actions = np.array([x[1] for x in minibatch])
-            rewards = np.array([x[2] for x in minibatch])
-            next_states = np.array([x[3] for x in minibatch])
-            dones = np.array([x[4] for x in minibatch])
-
-        current_q_values = self.model.predict(states, verbose=0)
-        next_q_values_main = self.model.predict(next_states, verbose=0)
-        next_q_values_target = self.target_model.predict(next_states, verbose=0)
-
-        for i in range(self.batch_size):
-            if dones[i]:
-                current_q_values[i][actions[i]] = rewards[i]
-            else:
-                best_action = np.argmax(next_q_values_main[i])
-                current_q_values[i][actions[i]] = rewards[i] + self.gamma * next_q_values_target[i][best_action]
-
-        callbacks = [
-            EarlyStopping(monitor='loss', patience=3, min_delta=1e-4),
-            ReduceLROnPlateau(monitor='loss', factor=0.1, patience=2)
-        ]
-
-        self.model.fit(
-            states,
-            current_q_values,
-            epochs=1,
-            verbose=0,
-            batch_size=self.batch_size,
-            callbacks=callbacks
-        )
-
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        return 0.5 * tf.square(quadratic) + delta * linear
 
     def act(self, state, training=True):
         if training and np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
 
-        act_values = self.model.predict(state.reshape(1, -1), verbose=0)
+        state = np.array(state).reshape(1, -1)
+        act_values = self.model.predict(state, verbose=0)[0]
 
         if training:
-            noise = np.random.normal(0, 0.1, self.action_size)
+            noise = np.random.normal(0, self.action_noise_sigma, self.action_size)
             act_values += noise
 
-        return np.argmax(act_values[0])
+        return np.argmax(act_values)
+
+    def evaluate(self, state):
+        state = np.array(state).reshape(1, -1)
+        act_values = self.model.predict(state, verbose=0)[0]
+        return np.argmax(act_values)
+
+    def replay(self):
+        if len(self.memory) < self.min_replay_memory:
+            return
+
+        minibatch = []
+        idxs = []
+        segment = self.memory.total() / self.batch_size
+        priorities = []
+
+        self.per_beta = min(1.0, self.per_beta + self.per_beta_increment)
+
+        for i in range(self.batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            s = random.uniform(a, b)
+            idx, priority, data = self.memory.get(s)
+            priorities.append(priority)
+            minibatch.append(data)
+            idxs.append(idx)
+
+        states = np.vstack([x[0] for x in minibatch])
+        actions = np.array([x[1] for x in minibatch])
+        rewards = np.array([x[2] for x in minibatch])
+        next_states = np.vstack([x[3] for x in minibatch])
+        dones = np.array([x[4] for x in minibatch])
+
+        priorities = np.array(priorities, dtype=np.float32)
+        probs = priorities / self.memory.total()
+        weights = (self.memory.n_entries * probs) ** (-self.per_beta)
+        weights = weights / weights.max()
+
+        with tf.device('/CPU:0'):
+            current_q_values = self.model.predict(states, batch_size=self.batch_size, verbose=0)
+            next_q_values_main = self.model.predict(next_states, batch_size=self.batch_size, verbose=0)
+            next_q_values_target = self.target_model.predict(next_states, batch_size=self.batch_size, verbose=0)
+
+        targets = current_q_values.copy()
+
+        for i in range(self.batch_size):
+            if dones[i]:
+                targets[i][actions[i]] = rewards[i]
+            else:
+                best_action = np.argmax(next_q_values_main[i])
+                targets[i][actions[i]] = rewards[i] + self.gamma ** self.n_step * next_q_values_target[i][best_action]
+
+            td_error = abs(targets[i][actions[i]] - current_q_values[i][actions[i]])
+            priority = (td_error + self.per_epsilon) ** self.per_alpha
+            self.memory.update(idxs[i], priority)
+
+        states = tf.convert_to_tensor(states, dtype=tf.float32)
+        targets = tf.convert_to_tensor(targets, dtype=tf.float32)
+        weights = tf.convert_to_tensor(weights, dtype=tf.float32)
+
+        loss = self.train_step(states, targets, weights)
+
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+        return loss
 
     def update_target_model(self):
         tau = 0.001
@@ -742,6 +941,37 @@ def visualize_training(env, episode_rewards, total_value_history, episode):
     plt.show()
 
 
+class CustomEarlyStopping:
+
+    def __init__(self, patience=10, min_delta: float = 0, mode='max'):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.mode = mode
+        self.best = float('inf') if mode == 'min' else float('-inf')
+        self.patience_counter = 0
+        self.stop_training = False
+
+    def __call__(self, current_value):
+        if self.mode == 'min':
+            if current_value < self.best - self.min_delta:
+                self.best = current_value
+                self.patience_counter = 0
+            else:
+                self.patience_counter += 1
+        else:
+            if current_value > self.best + self.min_delta:
+                self.best = current_value
+                self.patience_counter = 0
+            else:
+                self.patience_counter += 1
+
+        if self.patience_counter >= self.patience:
+            self.stop_training = True
+            return True
+
+        return False
+
+
 def train_trading_agent(episodes=500, evaluation_interval=10):
     data = create_realistic_market_data(n_points=1000)
     env = TradingEnvironment(data)
@@ -751,8 +981,7 @@ def train_trading_agent(episodes=500, evaluation_interval=10):
     best_sharpe = float('-inf')
     reward_window = deque(maxlen=10)
 
-    early_stopping = EarlyStopping(
-        monitor='mean_reward',
+    early_stopping = CustomEarlyStopping(
         patience=20,
         min_delta=0.01,
         mode='max'
@@ -799,7 +1028,7 @@ def train_trading_agent(episodes=500, evaluation_interval=10):
         # if (episode + 1) % evaluation_interval == 0:
         #     visualize_training(env, episode_rewards, env.total_value_history, episode + 1)
 
-        if early_stopping.on_epoch_end(episode, {'mean_reward': avg_reward}):
+        if early_stopping(avg_reward):
             print("Early stopping triggered!")
             break
 
